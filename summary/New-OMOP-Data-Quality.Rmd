@@ -1,0 +1,91 @@
+---
+title: "OMOP Data Quality Checks Report on CCAA"
+output: html_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = FALSE, warning = FALSE, error = FALSE,
+  out.width = "100%",
+  dpi = 300
+)
+```
+
+```{r setup}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(gt)
+library(patchwork)
+library(markovchain)
+```
+
+## connect database
+```{r connect}
+omop_conn <- DBI::dbConnect(
+    RPostgres::Postgres(),
+    host = 'localhost',
+    dbname = 'cca_omop',
+    user = 'postgres' ,
+    password = 'postgres',
+    port = 5432)
+
+person <- dbGetQuery(omop_conn, "select * from cca_omop.person")
+care_site <- dbGetQuery(omop_conn, "select * from cca_omop.care_site")
+visit_occurrence <- dbGetQuery(omop_conn, "select * from cca_omop.visit_occurrence")
+visit_detail <- dbGetQuery(omop_conn, "select * from cca_omop.visit_detail")
+death <- dbGetQuery(omop_conn, "select * from cca_omop.death")
+measurement <- dbGetQuery(omop_conn, "select * from cca_omop.measurement")
+observation <- dbGetQuery(omop_conn, "select * from cca_omop.observation")
+condition <- dbGetQuery(omop_conn, "select * from cca_omop.condition_occurrence")
+procedure <- dbGetQuery(omop_conn, "select * from cca_omop.procedure_occurrence")
+drug <- dbGetQuery(omop_conn, "select * from cca_omop.drug_exposure")
+
+raw_sql <- read_file("measurement_observation_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+measurement_observation_summary <- dbGetQuery(omop_conn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("condition_procedure_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+condition_procedure_summary <- dbGetQuery(omop_conn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("drug_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+drug_summary <- dbGetQuery(omop_conn, raw_sql) %>%
+    as_tibble()
+
+dbDisconnect(omop_conn)
+
+```
+
+## Person Table
+
+```{r ages}
+if ("person" %in% zero_vals) {
+  cat("There is no data in the person table")
+} else {
+  age_plot <- plot_age(overview)
+  check_age <- min(overview$age, na.rm = TRUE) >= 18
+}
+```
+Madatory checks
+
+- Minimum age >= 0: `r check_age`
+
+
+
+
+
+
+
+
+
+
+
+
+
+

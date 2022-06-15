@@ -65,12 +65,13 @@ dbDisconnect(omop_conn)
 ## Person Table
 
 ```{r ages}
-if ("person" %in% zero_vals) {
-  cat("There is no data in the person table")
-} else {
-  age_plot <- plot_age(overview)
-  check_age <- min(overview$age, na.rm = TRUE) >= 18
-}
+# if ("person" %in% zero_vals) {
+#   cat("There is no data in the person table")
+# } else {
+#   age_plot <- plot_age(overview)
+#   check_age <- min(overview$age, na.rm = TRUE) >= 18
+# }
+check_age <- min(person$age, na.rm = TRUE) >= 18
 ```
 Madatory checks
 

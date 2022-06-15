@@ -9,9 +9,6 @@ prepare_null_counts(st)
 \arguments{
 \item{st}{a prepped table list from \code{\link{prepare_tables}}}
 }
-\value{
-
-}
 \description{
 Prepare NULL count information
 }

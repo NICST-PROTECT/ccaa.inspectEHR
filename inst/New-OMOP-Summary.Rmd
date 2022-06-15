@@ -1,0 +1,175 @@
+---
+title: "OMOP Summary Report on CCAA"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_depth: 2
+editor_options: 
+  chunk_output_type: console
+params:
+  driver:
+    label: "Driver:"
+    value: PostgreSQL
+    input: select
+    choices: [PostgreSQL, ODBC, SQLite]
+  host: 
+    label: "Host:"
+    value: default_host
+    input: text
+  port: 
+    label: "Port:"
+    value: 5432
+    input: numeric
+  dbname: 
+    label: "Database Name:"
+    value: database
+    input: text
+  schema: 
+    label: "Schema:"
+    value: decovid_omop
+    input: text
+  user: 
+    label: "User name:"
+    value: user_name
+    input: text
+  password: 
+    label: "Password:"
+    value: password
+    input: password
+  local_hospital:
+    label: "Hospital name:"
+    value: CCAA
+    input: text
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = FALSE, warning = FALSE, error = FALSE,
+  out.width = "100%",
+  dpi = 300
+)
+```
+
+```{r setup}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(gt)
+library(patchwork)
+library(markovchain)
+```
+
+## Structural Checks
+
+```{r prepare-st}
+ctn <- setup_ctn(params)
+schema <- params$schema
+
+st <- prepare_tables(ctn, schema)
+overview <- prepare_overview(st)
+
+vo_id_true <- all(!is.na(overview$visit_occurrence_id))
+
+raw_sql <- read_file("measurement_observation_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+measurement_observation_summary <- dbGetQuery(ctn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("condition_procedure_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+condition_procedure_summary <- dbGetQuery(ctn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("drug_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+drug_summary <- dbGetQuery(ctn, raw_sql) %>%
+    as_tibble()
+```
+
+```{r row-counts}
+summary <- tibble(
+  variable = character(),
+  value = character())
+
+summary <- bind_rows(summary, c(c(variable = "Number of patients"), value = nrow(st[["person"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of visit occurrences"), value = nrow(st[["visit_occurrence"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of visit details"), value = nrow(st[["visit_detail"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of visit details"), value = nrow(st[["visit_detail"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of care sites"), value = nrow(st[["care_site"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of males"), value = nrow(st[["person"]] %>% filter(gender_concept_id == "8507"))))
+summary <- bind_rows(summary, c(c(variable = "Number of females"), value = nrow(st[["person"]] %>% filter(gender_concept_id == "8532"))))
+summary <- bind_rows(summary, c(c(variable = "Number of missing gender records"), value = nrow(st[["person"]] %>% filter(is.na(gender_concept_id)))))
+summary <- bind_rows(summary, c(c(variable = "Number of missing years of birth"), value = nrow(st[["person"]] %>% filter(is.na(year_of_birth)))))
+summary <- bind_rows(summary, c(c(variable = "Number of deaths"), value = nrow(st[["death"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of measurements"), value = nrow(st[["measurement"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of observations"), value = nrow(st[["observation"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of conditions"), value = nrow(st[["condition"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of procedures"), value = nrow(st[["procedure"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of drug exposures"), value = nrow(st[["drug"]])))
+```
+
+### General counts
+```{r}
+summary %>%
+  kable(format.args = list(big.mark = ","))
+```
+
+### Measurements and observations
+```{r}
+measurement_observation_summary %>%
+  kable(format.args = list(big.mark = ","))
+```
+
+### Condition and procedure occurence.
+Conditions with incidence >20 are displayed.
+```{r}
+condition_procedure_summary %>%
+  kable(format.args = list(big.mark = ","))
+```
+
+### Drug exposure
+```{r}
+drug_summary %>%
+  kable(format.args = list(big.mark = ","))
+```
+
+
+```{r disconnect}
+DBI::dbDisconnect(ctn)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

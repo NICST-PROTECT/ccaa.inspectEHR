@@ -9,9 +9,6 @@ plot_ethnicity(x)
 \arguments{
 \item{x}{}
 }
-\value{
-
-}
 \description{
 Plot Ethnicity
 }

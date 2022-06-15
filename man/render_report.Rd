@@ -22,9 +22,6 @@ database connection details, or a list that contains these details:
 \item local_hospital: string, local hospital
 }}
 }
-\value{
-
-}
 \description{
 Render Report
 }

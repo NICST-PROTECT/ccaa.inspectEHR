@@ -61,6 +61,9 @@ library(dplyr)
 library(gt)
 library(patchwork)
 library(markovchain)
+library(stringr)
+library(readr)
+library(DBI)
 ```
 
 ## Structural Checks
@@ -137,6 +140,196 @@ drug_summary %>%
   kable(format.args = list(big.mark = ","))
 ```
 
+
+```{r}
+clinical_tbls <- prepare_tally(ctn, schema)
+
+zero_vals <- clinical_tbls %>%
+  filter(n == 0) %>%
+  select(table) %>%
+  pull()
+```
+
+## Person Table
+
+```{r ages}
+if ("person" %in% zero_vals) {
+  cat("There is no data in the person table")
+} else {
+  age_plot <- plot_age(overview)
+  check_age <- min(overview$age, na.rm = TRUE) >= 18
+
+  sex_plot <- plot_sex(st[["person"]])
+  ethnic_plot <- plot_ethnicity(st[["person"]])
+
+  age_plot + sex_plot + ethnic_plot
+}
+```
+
+## Visit Characteristics
+
+Number of visits stratified by visit type:
+
+```{r visit-types}
+if (!("visit_occurrence" %in% zero_vals)) {
+  st[["visit_occurrence"]] %>%
+    group_by(visit_concept_id) %>%
+    summarise(
+      count = n(),
+      percentage = round((n()/nrow(st[["visit_occurrence"]]))*100, 0)
+    ) %>%
+    gt() %>%
+    tab_options(table.width = pct(100))
+}
+```
+
+```{r visit-profile}
+plot_visit_profile(st[["visit_occurrence"]])
+```
+
+```{r admission-from1}
+asci <- vo_ans %>%
+  filter(target_columnn == "admitting_source_concept_id") %>%
+  select(concept_id, concept_name) %>%
+  distinct()
+
+st[["visit_occurrence"]] %>%
+  filter(!(admitting_source_concept_id %in% asci$concept_name)) %>%
+  group_by(admitting_source_concept_id) %>%
+  tally() %>%
+  gt() %>%
+  tab_options(table.width = pct(100))
+```
+
+```{r admission-from2}
+st[["visit_occurrence"]] %>%
+  # mutate(admitting_source_concept_id = factor(
+  #   x = admitting_source_concept_id, levels = asci$concept_name, labels = asci$concept_name
+  # )) %>%
+  mutate(admitting_source_concept_id = forcats::fct_infreq(as.character(admitting_source_concept_id))) %>%
+  group_by(admitting_source_concept_id) %>%
+  tally() %>%
+  check_zero_tally(n) %>%
+  ggplot(aes(x = admitting_source_concept_id)) +
+  geom_point(aes(y = n, colour = .is_zero)) +
+  geom_segment(aes(
+    y = 0,
+    yend = n,
+    xend = admitting_source_concept_id)) +
+  scale_colour_manual(values = c("red", "black"), drop = FALSE) +
+  theme_classic() +
+  labs(y = "count") +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    axis.title.y = element_blank()) +
+    coord_flip() +
+  ggtitle("Admission Source")
+```
+
+Discharge codes outside the approved list:
+
+```{r discharge-to1}
+dtci <- vo_ans %>%
+  filter(target_columnn == "discharge_to_concept_id") %>%
+  select(concept_id, concept_name) %>%
+  distinct()
+
+st[["visit_occurrence"]] %>%
+  filter(!(discharge_to_concept_id %in% dtci$concept_name)) %>%
+  group_by(discharge_to_concept_id) %>%
+  tally() %>%
+  gt()
+```
+
+```{r discharge-to2}
+st[["visit_occurrence"]] %>%
+  #   mutate(discharge_to_concept_id = factor(
+  #   x = discharge_to_concept_id, levels = dtci$concept_name, labels = dtci$concept_name
+  # )) %>%
+  mutate(discharge_to_concept_id = forcats::fct_infreq(as.character(discharge_to_concept_id))) %>%
+  group_by(discharge_to_concept_id) %>%
+  tally() %>%
+  check_zero_tally(n) %>%
+  ggplot(aes(x = discharge_to_concept_id)) +
+  geom_point(aes(y = n, colour = .is_zero)) +
+  geom_segment(aes(
+    y = 0,
+    yend = n,
+    xend = discharge_to_concept_id)) +
+  scale_colour_manual(values = c("red", "black"), drop = FALSE) +
+  theme_classic() +
+  labs(y = "count") +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    axis.title.y = element_blank()) +
+  coord_flip() +
+  ggtitle("Discharge To")
+```
+
+## Readmissions
+
+```{r readmissions}
+visit_n <- overview %>%
+  group_by(person_id) %>%
+  tally(name = "attendance_number") %>%
+  group_by(attendance_number) %>%
+  tally() %>%
+  mutate(attendance_number = cut(
+    x = attendance_number,
+    breaks = c(1:10, 20, 100),
+    labels = c(paste0(1:9), "[10, 20)", "[20, 100)"),
+    right = FALSE)) %>%
+  group_by(attendance_number) %>%
+  summarise(n = sum(n)) %>%
+  mutate(attendance_number = forcats::fct_rev(attendance_number))
+
+visit_n %>%
+  ggplot() +
+  geom_linerange(aes(xmin = 0, xmax = n, y = attendance_number, group = attendance_number)) +
+  geom_point(aes(x = n, y = attendance_number)) +
+  theme_classic() +
+  labs(y = "attendances per patient", x = "count") +
+  ggtitle("Number of Admissions Observed per Patient")
+```
+
+## Outcomes
+
+The following list the outcomes for patients attending at **`r params$local_hospital`**:
+
+```{r outcomes}
+overview %>%
+  distinct(person_id, .keep_all = TRUE) %>%
+  filter(!is.na(visit_occurrence_id)) %>%
+  group_by(visit_concept_id, death = !is.na(death_datetime)) %>%
+  tally() %>%
+  group_by(visit_concept_id) %>%
+  mutate(
+    total = sum(n),
+    `%` = round((n/total)*100, 0)
+  ) %>%
+  gt()
+```
+
+## Distributions of Times
+
+Typically patients are admitted earlier in the day, and discarged later.
+Death often has a uniform distribution, with perhaps a slight peak in the early morning or later afternoon.
+
+```{r outcome-dist}
+overview %>%
+  select(visit_start_datetime, visit_end_datetime, death_datetime) %>%
+  mutate_all(~ as.POSIXct(., tz = "UTC")) %>%
+  filter_all(any_vars(!is.na(.))) %>%
+  mutate_all(~ hms::as_hms(.)) %>%
+  tidyr::pivot_longer(everything(), names_to = "time_point", values_to = "time") %>%
+  ggplot(aes(x = time, fill = time_point)) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  labs(x = "event time distribution", fill = "event") +
+  theme(legend.position = "bottom")
+```
 
 ```{r disconnect}
 DBI::dbDisconnect(ctn)

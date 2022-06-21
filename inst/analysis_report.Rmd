@@ -607,7 +607,7 @@ overview %>%
 
 ## Distributions of Times
 
-Typically patients are admitted earlier in the day, and discarged later.
+Typically patients are admitted ea\rlier in the day, and discarged later.
 Death often has a uniform distribution, with perhaps a slight peak in the early morning or later afternoon.
 
 ```{r outcome-dist}
@@ -687,24 +687,24 @@ meas_dq <- meas_all %>%
 
 rmd <- vector(mode = "list", length = nrow(meas_dq))
 
-# for (i in seq_along(meas_dq$concept_id)) {
-#   if (meas_dq$status[i] == "Onboarded") {
-#       rmd[[i]] <- try(knitr::knit_expand("child_measurement.Rmd",
-#                                  x = meas_dq$concept_id[i]))
-#   } else if (meas_dq$status[i] == "Pending") {
-#       rmd[[i]] <- try(knitr::knit_expand("child_pending.Rmd",
-#                                  x = meas_dq$concept_id[i]))
-#   } else {
-#       rmd[[i]] <- try(knitr::knit_expand("child_off_roadmap.Rmd",
-#                                  x = meas_dq$concept_id[i]))
-#   }
-# 
-# }
+for (i in seq_along(meas_dq$concept_id)) {
+  if (meas_dq$status[i] == "Onboarded") {
+      rmd[[i]] <- try(knitr::knit_expand("child_measurement.Rmd",
+                                 x = meas_dq$concept_id[i]))
+  } else if (meas_dq$status[i] == "Pending") {
+      rmd[[i]] <- try(knitr::knit_expand("child_pending.Rmd",
+                                 x = meas_dq$concept_id[i]))
+  } else {
+      rmd[[i]] <- try(knitr::knit_expand("child_off_roadmap.Rmd",
+                                 x = meas_dq$concept_id[i]))
+  }
 
-# rmd <- meas_dq$concept_id %>%
-#   purrr::map(
-#     ~ knitr::knit_expand("child_measurement.Rmd", x = .x)
-#   )
+}
+
+rmd <- meas_dq$concept_id %>%
+  purrr::map(
+    ~ knitr::knit_expand("child_measurement.Rmd", x = .x)
+  )
 
 rmd <- paste(rmd, collapse = "\n")
 ```

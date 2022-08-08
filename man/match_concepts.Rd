@@ -15,9 +15,6 @@ match_concepts(column, lookup)
 \item concept_id (containing the Athena code)
 }}
 }
-\value{
-
-}
 \description{
 Match and replace Athena codes with proper names
 }

@@ -1,4 +1,4 @@
-Package: d.inspectEHR
+Package: ccaa.inspectEHR
 Title: Data Quality Evaluation for DECOVID
 Version: 0.1.2
 Authors@R: 
@@ -12,7 +12,7 @@ License: CC BY 4.0
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.0
 Imports: 
     shiny,
     purrr,

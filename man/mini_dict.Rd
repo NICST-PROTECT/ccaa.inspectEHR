@@ -13,9 +13,6 @@ mini_dict(ctn, schema, concept_ids)
 
 \item{concept_ids}{an integer vector of athena concept ids}
 }
-\value{
-
-}
 \description{
 It is convenient to work with a small dictionary of concepts. This function
 pulls them out and creates a standardised dictionary of concept ids and names

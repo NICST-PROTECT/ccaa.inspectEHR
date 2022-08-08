@@ -1,0 +1,100 @@
+---
+title: "OMOP summary"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(DBI)
+library(tidyverse)
+library(knitr)
+library(available)
+```
+
+## R Markdown
+
+```{r connect}
+omop_conn <- DBI::dbConnect(
+    RPostgres::Postgres(),
+    host = 'localhost',
+    dbname = 'cca_omop',
+    user = 'postgres' ,
+    password = 'postgres',
+    port = 5432)
+
+person <- dbGetQuery(omop_conn, "select * from cca_omop.person")
+care_site <- dbGetQuery(omop_conn, "select * from cca_omop.care_site")
+visit_occurrence <- dbGetQuery(omop_conn, "select * from cca_omop.visit_occurrence")
+visit_detail <- dbGetQuery(omop_conn, "select * from cca_omop.visit_detail")
+death <- dbGetQuery(omop_conn, "select * from cca_omop.death")
+measurement <- dbGetQuery(omop_conn, "select * from cca_omop.measurement")
+observation <- dbGetQuery(omop_conn, "select * from cca_omop.observation")
+condition <- dbGetQuery(omop_conn, "select * from cca_omop.condition_occurrence")
+procedure <- dbGetQuery(omop_conn, "select * from cca_omop.procedure_occurrence")
+drug <- dbGetQuery(omop_conn, "select * from cca_omop.drug_exposure")
+
+raw_sql <- read_file("measurement_observation_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+measurement_observation_summary <- dbGetQuery(omop_conn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("condition_procedure_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+condition_procedure_summary <- dbGetQuery(omop_conn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("drug_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+drug_summary <- dbGetQuery(omop_conn, raw_sql) %>%
+    as_tibble()
+
+dbDisconnect(omop_conn)
+
+```
+
+```{r}
+summary <- tibble(
+  variable = character(),
+  value = character())
+
+summary <- bind_rows(summary, c(c(variable = "Number of patients"), value = nrow(person)))
+summary <- bind_rows(summary, c(c(variable = "Number of visit occurrences"), value = nrow(visit_occurrence)))
+summary <- bind_rows(summary, c(c(variable = "Number of visit details"), value = nrow(visit_detail)))
+summary <- bind_rows(summary, c(c(variable = "Number of visit details"), value = nrow(visit_detail)))
+summary <- bind_rows(summary, c(c(variable = "Number of care sites"), value = nrow(care_site)))
+summary <- bind_rows(summary, c(c(variable = "Number of males"), value = nrow(person %>% filter(gender_concept_id == "8507"))))
+summary <- bind_rows(summary, c(c(variable = "Number of females"), value = nrow(person %>% filter(gender_concept_id == "8532"))))
+summary <- bind_rows(summary, c(c(variable = "Number of missing gender records"), value = nrow(person %>% filter(is.na(gender_concept_id)))))
+summary <- bind_rows(summary, c(c(variable = "Number of missing years of birth"), value = nrow(person %>% filter(is.na(year_of_birth)))))
+summary <- bind_rows(summary, c(c(variable = "Number of deaths"), value = nrow(death)))
+summary <- bind_rows(summary, c(c(variable = "Number of measurements"), value = nrow(measurement)))
+summary <- bind_rows(summary, c(c(variable = "Number of observations"), value = nrow(observation)))
+summary <- bind_rows(summary, c(c(variable = "Number of conditions"), value = nrow(condition)))
+summary <- bind_rows(summary, c(c(variable = "Number of procedures"), value = nrow(procedure)))
+summary <- bind_rows(summary, c(c(variable = "Number of drug exposures"), value = nrow(drug)))
+```
+
+### General counts
+```{r}
+summary %>% 
+  kable(format.args = list(big.mark = ","))
+```
+
+### Measurements and observations
+```{r}
+measurement_observation_summary %>% 
+  kable(format.args = list(big.mark = ","))
+```
+
+### Condition and procedure occurence. 
+Conditions with incidence >20 are displayed.
+```{r}
+condition_procedure_summary %>% 
+  kable(format.args = list(big.mark = ","))
+```
+
+### Drug exposure 
+```{r}
+drug_summary %>% 
+  kable(format.args = list(big.mark = ","))
+```

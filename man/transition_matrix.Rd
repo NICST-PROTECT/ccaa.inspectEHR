@@ -14,9 +14,6 @@ transition_matrix(overview, st, possible_states)
 \item{possible_states}{a character vector of the possible states to be used
 in the markov chain fitting process}
 }
-\value{
-
-}
 \description{
 Create a transition matrix from visit details
 }

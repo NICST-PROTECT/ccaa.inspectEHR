@@ -32,32 +32,38 @@ remotes::install_github("DocEd/d.inspectEHR")
 
 ## Running the Report
 
-The report can be run by loading the package and running the following code.
+The report can be run by running the following code.
 
 ```r
-library(d.inspectEHR)
-render_report(output = "DECOVID_report.html")
-```
+devtools::load_all()
 
-This will prompt a shiny interface to launch for you to enter your database connection details.
-You can also supply these directly:
-
-```r
-library(d.inspectEHR)
-
-render_report(
-  output = "DECOVID_report.html",
+render_summary_report(
+  output = "Summary_report.html",
   prams = list(
     driver = "PostgreSQL",
     host = "localhost",
     port = 5432,
-    dbname = "omop",
-    schema = "public",
-    user = "w.flemming",
-    password = "chromatin",
-    local_hospital = "St. Elsewhere"
-    )
+    dbname = "cca_omop",
+    schema = "cca_omop",
+    user = "######",
+    password = "######",
+    local_hospital = "ccaa"
   )
+)
+
+render_quality_report(
+  output = "Data_Quality_report.html",
+  prams = list(
+    driver = "PostgreSQL",
+    host = "localhost",
+    port = 5432,
+    dbname = "cca_omop",
+    schema = "cca_omop",
+    user = "######",
+    password = "######",
+    local_hospital = "ccaa"
+  )
+)
 ```
 
 Grab a coffee and enjoy.

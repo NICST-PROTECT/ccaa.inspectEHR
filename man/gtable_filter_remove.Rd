@@ -13,9 +13,6 @@ gtable_filter_remove(x, name, trim = TRUE)
 
 \item{trim}{logical flag}
 }
-\value{
-
-}
 \description{
 Remove elements from ggplot at Glob level
 }

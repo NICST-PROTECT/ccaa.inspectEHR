@@ -15,9 +15,6 @@ tally_concept(ctn, schema, table, concept_col)
 
 \item{concept_col}{the concept_id target column (but be \code{..._concept_id})}
 }
-\value{
-
-}
 \description{
 Tally OMOP Concept ID Column
 }

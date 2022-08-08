@@ -1,6 +1,5 @@
 ---
-title: "DECOVID Data Evaluation Report"
-author: "Ed Palmer"
+title: "OMOP Data Quality Checks Report on CCAA"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document:
@@ -41,7 +40,7 @@ params:
     input: password
   local_hospital:
     label: "Hospital name:"
-    value: UCLH
+    value: CCAA
     input: text
 ---
 
@@ -62,15 +61,10 @@ library(dplyr)
 library(gt)
 library(patchwork)
 library(markovchain)
+library(stringr)
+library(readr)
+library(DBI)
 ```
-
-## Schema Checks
-
-This is a mid-stream quality evaluation and **does not** check for schema conformity.
-This should be conducted separately through the application of the DECOVID-OMOP dll file constraints.
-It is assumed that these have been applied successfully before running this report.
-
-## Structural Checks
 
 ```{r prepare-st}
 ctn <- setup_ctn(params)
@@ -80,40 +74,33 @@ st <- prepare_tables(ctn, schema)
 overview <- prepare_overview(st)
 
 vo_id_true <- all(!is.na(overview$visit_occurrence_id))
+
+raw_sql <- read_file("measurement_observation_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+measurement_observation_summary <- dbGetQuery(ctn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("condition_procedure_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+condition_procedure_summary <- dbGetQuery(ctn, raw_sql) %>%
+    as_tibble()
+
+raw_sql <- read_file("drug_summary.sql") %>% 
+    str_replace_all(":OMOP_SCHEMA", "cca_omop")
+drug_summary <- dbGetQuery(ctn, raw_sql) %>%
+    as_tibble()
 ```
+
 
 Check that all visit_occurrence_id is populated: `r vo_id_true`
 
-Row counts for core clinical tables:
-
-```{r row-counts}
+```{r}
 clinical_tbls <- prepare_tally(ctn, schema)
 
 zero_vals <- clinical_tbls %>%
   filter(n == 0) %>%
   select(table) %>%
   pull()
-
-clinical_tbls %>%
-  arrange(table) %>%
-  gt() %>%
-  tab_options(table.width = pct(100))
-```
-
-The proportion of *missing* data is shown.
-Sometimes is can be entirely appropriate.
-Rows are shown in **red** if they have a higher level of missingness than acceptable tolerances.
-
-```{r null-counts}
-st %>%
-  prepare_null_counts() %>%
-  gt() %>%
-  tab_style(
-    style = cell_fill(color = "red1", alpha = 0.5),
-    locations = cells_body(
-      rows = `% rows missing` > tolerance)
-  ) %>%
-  tab_options(table.width = pct(100))
 ```
 
 ## Person Table
@@ -122,21 +109,13 @@ st %>%
 if ("person" %in% zero_vals) {
   cat("There is no data in the person table")
 } else {
-  age_plot <- plot_age(overview)
   check_age <- min(overview$age, na.rm = TRUE) >= 18
-
-  sex_plot <- plot_sex(st[["person"]])
-  ethnic_plot <- plot_ethnicity(st[["person"]])
-
-  age_plot + sex_plot + ethnic_plot
 }
-
-
 ```
-
 Madatory checks
 
-- Minimum age >= 18: `r check_age`
+- Minimum age >= 0: `r check_age`
+
 
 ## Visit Characteristics
 
@@ -156,108 +135,6 @@ if ("visit_occurrence" %in% zero_vals) {
     ) %>%
     tab_options(table.width = pct(100))
 }
-```
-
-Number of visits stratified by visit type:
-
-```{r visit-types}
-if (!("visit_occurrence" %in% zero_vals)) {
-  st[["visit_occurrence"]] %>%
-    group_by(visit_concept_id) %>%
-    summarise(
-      count = n(),
-      percentage = round((n()/nrow(st[["visit_occurrence"]]))*100, 0)
-    ) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-```{r visit-profile}
-plot_visit_profile(st[["visit_occurrence"]])
-```
-
-Admission codes outside the approved list:
-
-```{r admission-from1}
-asci <- vo_ans %>%
-  filter(target_columnn == "admitting_source_concept_id") %>%
-  select(concept_id, concept_name) %>%
-  distinct()
-
-st[["visit_occurrence"]] %>%
-  filter(!(admitting_source_concept_id %in% asci$concept_name)) %>%
-  group_by(admitting_source_concept_id) %>%
-  tally() %>%
-  gt() %>%
-  tab_options(table.width = pct(100))
-```
-
-```{r admission-from2}
-st[["visit_occurrence"]] %>%
-  # mutate(admitting_source_concept_id = factor(
-  #   x = admitting_source_concept_id, levels = asci$concept_name, labels = asci$concept_name
-  # )) %>%
-  mutate(admitting_source_concept_id = forcats::fct_infreq(as.character(admitting_source_concept_id))) %>%
-  group_by(admitting_source_concept_id) %>%
-  tally() %>%
-  check_zero_tally(n) %>%
-  ggplot(aes(x = admitting_source_concept_id)) +
-  geom_point(aes(y = n, colour = .is_zero)) +
-  geom_segment(aes(
-    y = 0,
-    yend = n,
-    xend = admitting_source_concept_id)) +
-  scale_colour_manual(values = c("red", "black"), drop = FALSE) +
-  theme_classic() +
-  labs(y = "count") +
-  theme(
-    legend.position = "none",
-    plot.title.position = "plot",
-    axis.title.y = element_blank()) +
-    coord_flip() +
-  ggtitle("Admission Source")
-```
-
-Discharge codes outside the approved list:
-
-```{r discharge-to1}
-dtci <- vo_ans %>%
-  filter(target_columnn == "discharge_to_concept_id") %>%
-  select(concept_id, concept_name) %>%
-  distinct()
-
-st[["visit_occurrence"]] %>%
-  filter(!(discharge_to_concept_id %in% dtci$concept_name)) %>%
-  group_by(discharge_to_concept_id) %>%
-  tally() %>%
-  gt()
-```
-
-```{r discharge-to2}
-st[["visit_occurrence"]] %>%
-  #   mutate(discharge_to_concept_id = factor(
-  #   x = discharge_to_concept_id, levels = dtci$concept_name, labels = dtci$concept_name
-  # )) %>%
-  mutate(discharge_to_concept_id = forcats::fct_infreq(as.character(discharge_to_concept_id))) %>%
-  group_by(discharge_to_concept_id) %>%
-  tally() %>%
-  check_zero_tally(n) %>%
-  ggplot(aes(x = discharge_to_concept_id)) +
-  geom_point(aes(y = n, colour = .is_zero)) +
-  geom_segment(aes(
-    y = 0,
-    yend = n,
-    xend = discharge_to_concept_id)) +
-  scale_colour_manual(values = c("red", "black"), drop = FALSE) +
-  theme_classic() +
-  labs(y = "count") +
-  theme(
-    legend.position = "none",
-    plot.title.position = "plot",
-    axis.title.y = element_blank()) +
-  coord_flip() +
-  ggtitle("Discharge To")
 ```
 
 All deaths inside the hospital should be aligned with the final visit end datetime.
@@ -447,32 +324,6 @@ res_adm_toll %>%
   tab_options(table.width = pct(100))
 ```
 
-## Readmissions
-
-```{r readmissions}
-visit_n <- overview %>%
-  group_by(person_id) %>%
-  tally(name = "attendance_number") %>%
-  group_by(attendance_number) %>%
-  tally() %>%
-  mutate(attendance_number = cut(
-    x = attendance_number,
-    breaks = c(1:10, 20, 100),
-    labels = c(paste0(1:9), "[10, 20)", "[20, 100)"),
-    right = FALSE)) %>%
-  group_by(attendance_number) %>%
-  summarise(n = sum(n)) %>%
-  mutate(attendance_number = forcats::fct_rev(attendance_number))
-
-visit_n %>%
-  ggplot() +
-  geom_linerange(aes(xmin = 0, xmax = n, y = attendance_number, group = attendance_number)) +
-  geom_point(aes(x = n, y = attendance_number)) +
-  theme_classic() +
-  labs(y = "attendances per patient", x = "count") +
-  ggtitle("Number of Admissions Observed per Patient")
-```
-
 ## Visit Detail
 
 Are all visits ordered sequentially:
@@ -550,78 +401,6 @@ res_adm_toll %>%
              (`%` < tolerance & `length of stay` == "positive")
   )) %>%
   tab_options(table.width = pct(100))
-```
-
-
-The following is a transition matrix of moves within the visit_detail, fit under MLE.
-It does not consider transitions as a function of time spent in any location.
-
- <!-- ```{r transition-matrix} -->
- <!-- cs <- tbl(ctn, in_schema(schema, "care_site")) %>% -->
- <!--   collect() -->
-
- <!-- loc_order <- c("External (Pt Home)", -->
- <!--                "External (Pt Other)", -->
- <!--                unique(cs$care_site_name), -->
- <!--                "Died") -->
-
- <!-- tm <- transition_matrix(overview, st, possible_states = loc_order) -->
- <!-- plot_tm(tm, loc_order) -->
- <!-- ``` -->
-
- <!-- ```{r illegal-moves1} -->
- <!-- tm_fit <- as_tibble(tm$estimate@transitionMatrix) %>% -->
- <!--     tibble::add_column( -->
- <!--       source = rownames(tm$estimate@transitionMatrix), .before = TRUE) %>% -->
- <!--     pivot_longer(-contains("source"), -->
- <!--                  names_to = "destination", -->
- <!--                  values_to = "value") %>% -->
- <!--     mutate(across(c("source", "destination"), factor, levels = loc_order)) -->
- <!-- tm_fit %>% -->
- <!--   filter(source == destination, value > 0) %>% -->
- <!--   gt() -->
- <!-- ``` -->
- <!-- Death is an absorbing state, so we shouldn't be able to see the patient appear anywhere else afterwards -->
-
- <!-- ```{r illegal-moves2} -->
- <!-- testthat::expect_true(nrow(filter(tm_fit, source == "Died", value > 0)) == 0) -->
- <!-- ``` -->
-
-## Outcomes
-
-The following list the outcomes for patients attending at **`r params$local_hospital`**:
-
-```{r outcomes}
-overview %>%
-  distinct(person_id, .keep_all = TRUE) %>%
-  filter(!is.na(visit_occurrence_id)) %>%
-  group_by(visit_concept_id, death = !is.na(death_datetime)) %>%
-  tally() %>%
-  group_by(visit_concept_id) %>%
-  mutate(
-    total = sum(n),
-    `%` = round((n/total)*100, 0)
-  ) %>%
-  gt()
-```
-
-## Distributions of Times
-
-Typically patients are admitted ea\rlier in the day, and discarged later.
-Death often has a uniform distribution, with perhaps a slight peak in the early morning or later afternoon.
-
-```{r outcome-dist}
-overview %>%
-  select(visit_start_datetime, visit_end_datetime, death_datetime) %>%
-  mutate_all(~ as.POSIXct(., tz = "UTC")) %>%
-  filter_all(any_vars(!is.na(.))) %>%
-  mutate_all(~ hms::as_hms(.)) %>%
-  tidyr::pivot_longer(everything(), names_to = "time_point", values_to = "time") %>%
-  ggplot(aes(x = time, fill = time_point)) +
-  geom_density(alpha = 0.5) +
-  theme_classic() +
-  labs(x = "event time distribution", fill = "event") +
-  theme(legend.position = "bottom")
 ```
 
 ## Measurements
@@ -714,130 +493,19 @@ rendered <- knit(text = rmd, quiet = TRUE)
 cat(rendered, sep = "\n")
 ```
 
-## Specimen Table
-
-Unique specimen concepts:
-
-```{r specimen1}
-if (!("specimen" %in% zero_vals)) {
-  spec <- tally_concept(ctn, schema, "specimen", "specimen_concept_id")
-
-  spec %>%
-    arrange(desc(n)) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-Unique anatamical sites:
-
-```{r specimen2}
-if (!("specimen" %in% zero_vals)) {
-  spec_as <- tally_concept(ctn, schema, "specimen", "anatomic_site_concept_id")
-
-  spec_as %>%
-    arrange(desc(n)) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-
-## Drug Exposure Table
-
-The top 50 most common drugs given:
-
-```{r drugs}
-if (!("drug_exposure" %in% zero_vals)) {
-  drug <- tally_concept(ctn, schema, "drug_exposure", "drug_concept_id")
-  
-  drug %>%
-    arrange(desc(n)) %>%
-    slice(1:50) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-
-## Condition Occurrence Table
-
-The top 20 most common conditions:
-
-```{r condition-occurrence1}
-if (!("condition_occurrence" %in% zero_vals)) {
-  cond <- tally_concept(ctn, schema, "condition_occurrence", "condition_concept_id")
-  
-  cond %>%
-    arrange(desc(n)) %>%
-    slice(1:20) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-Condition types seen:
-
-```{r condition-occurrence2}
-if (!("condition_occurrence" %in% zero_vals)) {
-  cond_t <- tally_concept(ctn, schema, "condition_occurrence", "condition_type_concept_id")
-  
-  cond_t %>%
-    arrange(desc(n)) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-Condition status seen:
-
-```{r condition-occurrence3}
-if (!("condition_occurrence" %in% zero_vals)) {
-  cond_s <- tally_concept(ctn, schema, "condition_occurrence", "condition_status_concept_id")
-  
-  cond_s %>%
-    arrange(desc(n)) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-
-## Procedure Occurrence Table
-
-All procedures seen:
-
-```{r procedure-table}
-if (!("procedure_occurrence" %in% zero_vals)) {
-  proc <- tally_concept(ctn, schema, "procedure_occurrence", "procedure_concept_id")
-  
-  proc %>%
-    arrange(desc(n)) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
-
-
-## Fact Relationship
-
-- check that all the relationships are listed both ways around
-- check how many:
-  - specimens link to measurements
-  - how many terminal branch (metadata) tags we have
-
-```{r fr-table1}
-if (!("fact_relationship" %in% zero_vals)) {
-  fr_types <- tally_concept(ctn, schema, "fact_relationship", "relationship_concept_id")
-  
-  fr_types %>%
-    arrange(desc(n)) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
-}
-```
 
 
 ```{r disconnect}
 DBI::dbDisconnect(ctn)
 ```
+
+
+
+
+
+
+
+
+
+
+

@@ -9,6 +9,9 @@ prepare_cohort_boundaries(x)
 \arguments{
 \item{x}{}
 }
+\value{
+
+}
 \description{
 Prepare Cohort Boundaries
 }

@@ -11,6 +11,9 @@ check_zero_tally(x, column)
 
 \item{column}{the column name with tally counts (tidyeval)}
 }
+\value{
+
+}
 \description{
 Appends a dataframe with a new column to identify rows that contain zeros.
 This is then represented as a factor with the levels: "no" and "yes" so that

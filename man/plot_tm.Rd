@@ -12,6 +12,9 @@ plot_tm(tm, possible_states)
 \item{possible_states}{a character vector of the possible states to be used
 in the markov chain fitting process}
 }
+\value{
+
+}
 \description{
 Plot Transition Matrix
 }

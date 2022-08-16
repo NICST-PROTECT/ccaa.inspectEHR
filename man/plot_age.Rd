@@ -9,6 +9,9 @@ plot_age(x)
 \arguments{
 \item{x}{}
 }
+\value{
+
+}
 \description{
 Plot Age
 }

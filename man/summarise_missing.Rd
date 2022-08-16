@@ -11,6 +11,9 @@ summarise_missing(x, tbl_name)
 
 \item{tbl_name}{the OMOP table name of \code{x}}
 }
+\value{
+
+}
 \description{
 Summarise Missing Values within a Dataframe
 }

@@ -9,6 +9,9 @@ plot_visit_profile(x)
 \arguments{
 \item{x}{}
 }
+\value{
+
+}
 \description{
 Plot Visit Profile
 }

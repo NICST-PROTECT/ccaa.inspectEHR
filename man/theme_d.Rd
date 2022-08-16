@@ -9,6 +9,9 @@ theme_d(...)
 \arguments{
 \item{...}{arguments to pass to \code{theme}}
 }
+\value{
+
+}
 \description{
 DECOVID Plot Theme
 }

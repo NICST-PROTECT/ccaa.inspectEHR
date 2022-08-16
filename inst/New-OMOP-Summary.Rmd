@@ -100,8 +100,6 @@ summary <- tibble(
 
 summary <- bind_rows(summary, c(c(variable = "Number of patients"), value = nrow(st[["person"]])))
 summary <- bind_rows(summary, c(c(variable = "Number of visit occurrences"), value = nrow(st[["visit_occurrence"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of visit details"), value = nrow(st[["visit_detail"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of visit details"), value = nrow(st[["visit_detail"]])))
 summary <- bind_rows(summary, c(c(variable = "Number of care sites"), value = nrow(st[["care_site"]])))
 summary <- bind_rows(summary, c(c(variable = "Number of males"), value = nrow(st[["person"]] %>% filter(gender_concept_id == "8507"))))
 summary <- bind_rows(summary, c(c(variable = "Number of females"), value = nrow(st[["person"]] %>% filter(gender_concept_id == "8532"))))

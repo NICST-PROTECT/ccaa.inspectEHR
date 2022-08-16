@@ -1,12 +1,15 @@
 Package: ccaa.inspectEHR
-Title: Data Quality Evaluation for DECOVID
+Title: Data Quality Evaluation for CCAA
 Version: 0.1.2
 Authors@R: 
-    person(given = "Edward",
-           family = "Palmer",
+    person(given = "Aasiyah",
+           family = "Rashan",
            role = c("aut", "cre"),
-           email = "edward.palmer@ucl.ac.uk",
-           comment = c(ORCID = "0000-0002-8024-4616"))
+           email = "aasiyah@nicslk.com")
+    person(given = "Himasha",
+           family = "Muvindi",
+           role = c("aut", "cre"),
+           email = "himasha@nicslk.com")
 Description: Evaluates Quality
 License: CC BY 4.0
 Encoding: UTF-8

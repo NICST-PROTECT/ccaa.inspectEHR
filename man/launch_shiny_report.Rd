@@ -10,6 +10,9 @@ launch_shiny_report(connection = NULL, schema = "decovid_omop")
 \item{parms_list}{list version of \code{parms} from
 \code{\link{render_report}}.}
 }
+\value{
+
+}
 \description{
 Launch the shiny version of the report
 }

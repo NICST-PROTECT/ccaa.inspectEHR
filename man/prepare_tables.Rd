@@ -11,6 +11,9 @@ prepare_tables(connection, schema_name)
 
 \item{schema_name}{a character vector for the target schema within the DB}
 }
+\value{
+
+}
 \description{
 Collects and processes some of the smaller database tables:
 }

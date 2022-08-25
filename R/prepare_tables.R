@@ -23,19 +23,13 @@
 #' @export
 prepare_tables <- function(connection, schema_name) {
 
-  st <- vector(mode = "list", length = 4)
-  names(st) <- c("person", "visit_occurrence", "visit_detail", "death")
-
-  st[["person"]] <- collect(tbl(connection, in_schema(schema_name, "person")))
-
-  st[["visit_occurrence"]] <- collect(
-    tbl(connection, in_schema(schema_name, "visit_occurrence")))
-
-  st[["visit_detail"]] <- collect(
-    tbl(connection, in_schema(schema_name, "visit_detail")))
-
-  st[["death"]] <- collect(tbl(connection, in_schema(schema_name, "death")))
-
+  # Reading the tables in.
+  tables <- c("person", "visit_occurrence", "visit_detail", "care_site", "death")
+  
+  st <- 
+    map(tables, ~collect(tbl(connection, in_schema(schema_name, .x))))
+  
+  # Translating the concept IDs to names.
   all_concepts <- st %>%
     map(~ select(., contains("concept_id")) %>%
           pivot_longer(everything(),
@@ -57,7 +51,7 @@ prepare_tables <- function(connection, schema_name) {
             across(
               c(contains("concept_id"),
                 -contains("source"),
-                contains("admitting_source_concept_id")),
+                contains("admitted_from_concept_id")),
               match_concepts, lookup = replace_names))
     ) %>%
     map(~
@@ -98,11 +92,12 @@ prepare_overview <- function(x) {
                        .data$visit_start_datetime,
                        .data$visit_end_datetime,
                        .data$visit_concept_id,
-                       .data$admitting_source_concept_id,
-                       .data$discharge_to_concept_id),
+                       .data$admitted_from_concept_id,
+                       .data$discharged_to_concept_id),
               by = "person_id") %>%
+    # As per OMOP guidance, missing dates of birth are imputed as June 15th.
     mutate(
-      age = interval(start = as.Date(paste0(.data$year_of_birth, "-12-31")),
+      age = interval(start = as.Date(paste0(.data$year_of_birth, "-06-15")),
                      end = .data$visit_start_datetime)/years(1))
 }
 

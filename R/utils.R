@@ -189,3 +189,37 @@ setup_ctn <- function(params) {
 
   return(ctn)
 }
+
+#' Print large kable. Standardises the formatting of full width kables.
+#' Also double checks that we are not printing empty tables.
+#' @param table The table to print.
+#' @param caption Caption for the table
+#' @param max_rows The maximumn number of rows to print. Defaults to 10.
+#' @param print_empty_vars Logical indicating if variables with all NAs should be printed
+#' @import knitr
+#' @import kableExtra
+#' @import tidyverse
+#' @return A neatly formatted full width kable.
+print_large_kable <- function(table, caption =  "", max_rows = 10, print_empty_vars=TRUE){
+  if(print_empty_vars == FALSE){
+    table <- table %>%
+      select_if(~!(all(is.na(.))))
+  }
+  if(nrow(table) > 0){
+    n_rows <- nrow(table)
+    options(knitr.kable.NA = "\\-")
+    max_rows <- ifelse(max_rows < n_rows, max_rows, n_rows)
+    
+    table %>%
+      head(max_rows) %>%
+      # formatting for kable
+      mutate_if(is.character, ~ str_replace_all(.x, "\\n", "<br>")) %>%
+      mutate_if(is.character, ~ str_replace_all(.x, "\\^", "\\\\^")) %>%
+      kable(format.args = list(big.mark = ","),
+            caption = paste0(caption, " printed ", max_rows, " out of ", n_rows),
+            digits = 2, escape = FALSE, format = "html", align = "l") %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = TRUE)
+  } else{
+    cat('\n\n<!-- -->\n\n')
+  }
+}

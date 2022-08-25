@@ -22,7 +22,7 @@ render_summary_report <- function(output = NULL, prams = "ask") {
   }
 
   report_pth <- system.file("New-OMOP-Summary.Rmd", package = "ccaa.inspectEHR")
-  rmarkdown::render(report_pth, params = prams,
+  rmarkdown::render(report_pth, params = params,
                     output_file = output)
 }
 
@@ -44,7 +44,7 @@ render_summary_report <- function(output = NULL, prams = "ask") {
 #'
 #' @return
 #' @export
-render_quality_report <- function(output = NULL, prams = "ask") {
+render_quality_report <- function(output = NULL, params = "ask") {
 
   if (is.null(output)) {
     rlang::abort("please provide an output file path")

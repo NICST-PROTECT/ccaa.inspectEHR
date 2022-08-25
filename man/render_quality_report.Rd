@@ -4,7 +4,7 @@
 \alias{render_quality_report}
 \title{Render Quality Report}
 \usage{
-render_quality_report(output = NULL, prams = "ask")
+render_quality_report(output = NULL, params = "ask")
 }
 \arguments{
 \item{output}{an output file path}

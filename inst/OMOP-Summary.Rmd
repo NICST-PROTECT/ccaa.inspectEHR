@@ -45,6 +45,13 @@ params:
 ---
 
 ```{r, include = FALSE}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(readr)
+library(DBI)
+
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -54,43 +61,42 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
-library(knitr)
-library(ggplot2)
-library(dplyr)
-library(gt)
-library(patchwork)
-library(markovchain)
-library(stringr)
-library(readr)
-library(DBI)
-```
-
 ## Structural Checks
 
 ```{r prepare-st}
-ctn <- setup_ctn(params)
-schema <- params$schema
 
-st <- prepare_tables(ctn, schema)
+# Connect to the database. 
+# Read core tables and prepare overview. 
+ctn <- setup_ctn(params)
+
+st <- prepare_tables(ctn, params$schema)
 overview <- prepare_overview(st)
 
-vo_id_true <- all(!is.na(overview$visit_occurrence_id))
+# Getting counts of all the tables.
+table_counts <- prepare_tally(ctn, params$schema)
 
-raw_sql <- read_file(system.file("measurement_observation_summary.sql", package = "ccaa.inspectEHR")) %>% 
-    str_replace_all(":OMOP_SCHEMA", params$schema)
-measurement_observation_summary <- dbGetQuery(ctn, raw_sql) %>%
+zero_vals <- table_counts %>%
+  filter(n == 0) %>%
+  select(table) %>%
+  pull()
+
+measurement_observation_summary <- read_file(system.file("measurement_observation_summary.sql", 
+                                                         package = "ccaa.inspectEHR")) %>% 
+    str_replace_all(":OMOP_SCHEMA", params$schema) %>% 
+  dbGetQuery(ctn, .) %>%
     as_tibble()
 
-raw_sql <- read_file(system.file("condition_procedure_summary.sql", package = "ccaa.inspectEHR")) %>% 
-    str_replace_all(":OMOP_SCHEMA", params$schema)
-condition_procedure_summary <- dbGetQuery(ctn, raw_sql) %>%
+condition_procedure_summary <- read_file(system.file("condition_procedure_summary.sql", package = "ccaa.inspectEHR")) %>% 
+    str_replace_all(":OMOP_SCHEMA", params$schema) %>% 
+  dbGetQuery(ctn, .) %>%
     as_tibble()
 
-raw_sql <- read_file(system.file("drug_summary.sql", package = "ccaa.inspectEHR")) %>% 
-    str_replace_all(":OMOP_SCHEMA", params$schema)
-drug_summary <- dbGetQuery(ctn, raw_sql) %>%
+drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspectEHR")) %>% 
+    str_replace_all(":OMOP_SCHEMA", params$schema) %>% 
+  dbGetQuery(ctn, .) %>%
     as_tibble()
+
+DBI::dbDisconnect(ctn)
 ```
 
 ```{r row-counts}
@@ -98,55 +104,39 @@ summary <- tibble(
   variable = character(),
   value = character())
 
-summary <- bind_rows(summary, c(c(variable = "Number of patients"), value = nrow(st[["person"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of visit occurrences"), value = nrow(st[["visit_occurrence"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of care sites"), value = nrow(st[["care_site"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of males"), value = nrow(st[["person"]] %>% filter(gender_concept_id == "MALE"))))
-summary <- bind_rows(summary, c(c(variable = "Number of females"), value = nrow(st[["person"]] %>% filter(gender_concept_id == "FEMALE"))))
-summary <- bind_rows(summary, c(c(variable = "Number of missing gender records"), value = nrow(st[["person"]] %>% filter(is.na(gender_concept_id)))))
-summary <- bind_rows(summary, c(c(variable = "Number of missing years of birth"), value = nrow(st[["person"]] %>% filter(is.na(year_of_birth)))))
-summary <- bind_rows(summary, c(c(variable = "Number of deaths"), value = nrow(st[["death"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of measurements"), value = nrow(st[["measurement"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of observations"), value = nrow(st[["observation"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of conditions"), value = nrow(st[["condition"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of procedures"), value = nrow(st[["procedure"]])))
-summary <- bind_rows(summary, c(c(variable = "Number of drug exposures"), value = nrow(st[["drug"]])))
+summary <- bind_rows(summary, c(c(variable = "Number of patients"), 
+                                value = filter(table_counts, table == "person") %>% pull(n)))
+summary <- bind_rows(summary, c(c(variable = "Number of visit occurrences"), 
+                                value = filter(table_counts, table == "visit_occurrence") %>% pull(n)))
+summary <- bind_rows(summary, c(c(variable = "Number of care sites"), 
+                                value = filter(table_counts, table == "care_site") %>% pull(n)))
+summary <- bind_rows(summary, c(c(variable = "Number of males"), 
+                                value = nrow(st[["person"]] %>% filter(gender_concept_id == "MALE"))))
+summary <- bind_rows(summary, c(c(variable = "Number of females"), 
+                                value = nrow(st[["person"]] %>% filter(gender_concept_id == "FEMALE"))))
+summary <- bind_rows(summary, c(c(variable = "Number of missing gender records"), 
+                                value = nrow(st[["person"]] %>% filter(is.na(gender_concept_id)))))
+summary <- bind_rows(summary, c(c(variable = "Number of missing years of birth"), 
+                                value = nrow(st[["person"]] %>% filter(is.na(year_of_birth)))))
+summary <- bind_rows(summary, c(c(variable = "Number of measurements"),
+                                value = filter(table_counts, table == "measurement") %>% pull(n)))
+summary <- bind_rows(summary, c(c(variable = "Number of observations"), 
+                                value = filter(table_counts, table == "observation") %>% pull(n)))
+summary <- bind_rows(summary, c(c(variable = "Number of conditions"), 
+                                value = filter(table_counts, table == "condition_occurrence") %>% pull(n)))
+summary <- bind_rows(summary, c(c(variable = "Number of procedures"), 
+                                value = filter(table_counts, table == "procedure_occurrence") %>% pull(n)))
+summary <- bind_rows(summary, c(c(variable = "Number of drug exposures"), 
+                                value = filter(table_counts, table == "drug_exposure") %>% pull(n)))
 ```
 
 ### General counts
 ```{r}
 summary %>%
+  mutate(value = as.integer(value)) %>% 
   print_large_kable()
 ```
 
-### Measurements and observations
-```{r}
-measurement_observation_summary %>%
-  kable(format.args = list(big.mark = ","))
-```
-
-### Condition and procedure occurence.
-Conditions with incidence >20 are displayed.
-```{r}
-condition_procedure_summary %>%
-  kable(format.args = list(big.mark = ","))
-```
-
-### Drug exposure
-```{r}
-drug_summary %>%
-  kable(format.args = list(big.mark = ","))
-```
-
-
-```{r}
-clinical_tbls <- prepare_tally(ctn, schema)
-
-zero_vals <- clinical_tbls %>%
-  filter(n == 0) %>%
-  select(table) %>%
-  pull()
-```
 
 ## Person Table
 
@@ -175,9 +165,8 @@ if (!("visit_occurrence" %in% zero_vals)) {
     summarise(
       count = n(),
       percentage = round((n()/nrow(st[["visit_occurrence"]]))*100, 0)
-    ) %>%
-    gt() %>%
-    tab_options(table.width = pct(100))
+    ) %>% 
+    print_large_kable()
 }
 ```
 
@@ -195,15 +184,11 @@ st[["visit_occurrence"]] %>%
   filter(!(admitted_from_concept_id %in% asci$concept_name)) %>%
   group_by(admitted_from_concept_id) %>%
   tally() %>%
-  gt() %>%
-  tab_options(table.width = pct(100))
+  print_large_kable()
 ```
 
 ```{r admission-from2}
 st[["visit_occurrence"]] %>%
-  # mutate(admitted_from_concept_id = factor(
-  #   x = admitted_from_concept_id, levels = asci$concept_name, labels = asci$concept_name
-  # )) %>%
   mutate(admitted_from_concept_id = forcats::fct_infreq(as.character(admitted_from_concept_id))) %>%
   group_by(admitted_from_concept_id) %>%
   tally() %>%
@@ -237,14 +222,11 @@ st[["visit_occurrence"]] %>%
   filter(!(discharged_to_concept_id %in% dtci$concept_name)) %>%
   group_by(discharged_to_concept_id) %>%
   tally() %>%
-  gt()
+  print_large_kable()
 ```
 
 ```{r discharge-to2}
 st[["visit_occurrence"]] %>%
-  #   mutate(discharged_to_concept_id = factor(
-  #   x = discharged_to_concept_id, levels = dtci$concept_name, labels = dtci$concept_name
-  # )) %>%
   mutate(discharged_to_concept_id = forcats::fct_infreq(as.character(discharged_to_concept_id))) %>%
   group_by(discharged_to_concept_id) %>%
   tally() %>%
@@ -266,32 +248,6 @@ st[["visit_occurrence"]] %>%
   ggtitle("Discharge To")
 ```
 
-## Readmissions
-
-```{r readmissions}
-visit_n <- overview %>%
-  group_by(person_id) %>%
-  tally(name = "attendance_number") %>%
-  group_by(attendance_number) %>%
-  tally() %>%
-  mutate(attendance_number = cut(
-    x = attendance_number,
-    breaks = c(1:10, 20, 100),
-    labels = c(paste0(1:9), "[10, 20)", "[20, 100)"),
-    right = FALSE)) %>%
-  group_by(attendance_number) %>%
-  summarise(n = sum(n)) %>%
-  mutate(attendance_number = forcats::fct_rev(attendance_number))
-
-visit_n %>%
-  ggplot() +
-  geom_linerange(aes(xmin = 0, xmax = n, y = attendance_number, group = attendance_number)) +
-  geom_point(aes(x = n, y = attendance_number)) +
-  theme_classic() +
-  labs(y = "attendances per patient", x = "count") +
-  ggtitle("Number of Admissions Observed per Patient")
-```
-
 ## Outcomes
 
 The following list the outcomes for patients attending at **`r params$local_hospital`**:
@@ -307,7 +263,7 @@ overview %>%
     total = sum(n),
     `%` = round((n/total)*100, 0)
   ) %>%
-  gt()
+  print_large_kable()
 ```
 
 ## Distributions of Times
@@ -329,6 +285,23 @@ overview %>%
   theme(legend.position = "bottom")
 ```
 
-```{r disconnect}
-DBI::dbDisconnect(ctn)
+### Measurements and observations
+The 50 most common concepts are displayed.
+```{r}
+measurement_observation_summary %>%
+  print_large_kable(max_rows = 50)
+```
+
+### Condition and procedure occurence.
+The 50 most common concepts are displayed.
+```{r}
+condition_procedure_summary %>%
+  print_large_kable(max_rows = 50)
+```
+
+### Drug exposure
+The 50 most common concepts are displayed.
+```{r}
+drug_summary %>%
+  print_large_kable(max_rows = 50)
 ```

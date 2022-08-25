@@ -200,7 +200,7 @@ setup_ctn <- function(params) {
 #' @import kableExtra
 #' @import tidyverse
 #' @return A neatly formatted full width kable.
-print_large_kable <- function(table, caption =  "", max_rows = 10, print_empty_vars=TRUE){
+print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_vars=TRUE){
   if(print_empty_vars == FALSE){
     table <- table %>%
       select_if(~!(all(is.na(.))))

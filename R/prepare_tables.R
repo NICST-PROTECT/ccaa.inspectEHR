@@ -24,10 +24,11 @@
 prepare_tables <- function(connection, schema_name) {
 
   # Reading the tables in.
-  tables <- c("person", "visit_occurrence", "visit_detail", "care_site", "death")
+  tables <- c("person", "visit_occurrence", "death")
   
   st <- 
-    map(tables, ~collect(tbl(connection, in_schema(schema_name, .x))))
+    map(tables, ~collect(tbl(connection, in_schema(schema_name, .x)))) %>% 
+    setNames(tables)
   
   # Translating the concept IDs to names.
   all_concepts <- st %>%
@@ -120,13 +121,11 @@ prepare_overview <- function(x) {
 prepare_tally <- function(ctn, schema,
                           tbl_names = c(
                                         "person",
-                                        "specimen",
+                                        "care_site",
                                         "death",
                                         "visit_occurrence",
-                                        "visit_detail",
                                         "procedure_occurrence",
                                         "drug_exposure",
-                                        "device_exposure",
                                         "condition_occurrence",
                                         "measurement",
                                         "observation")) {

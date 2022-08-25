@@ -7,9 +7,9 @@
 prepare_tally(
   ctn,
   schema,
-  tbl_names = c("person", "specimen", "death", "visit_occurrence", "visit_detail",
-    "procedure_occurrence", "drug_exposure", "device_exposure", "condition_occurrence",
-    "measurement", "observation")
+  tbl_names = c("person", "care_site", "death", "visit_occurrence",
+    "procedure_occurrence", "drug_exposure", "condition_occurrence", "measurement",
+    "observation")
 )
 }
 \arguments{

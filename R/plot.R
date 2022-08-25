@@ -111,6 +111,8 @@ plot_ethnicity <- function(x) {
 plot_visit_profile <- function(x) {
   x %>%
     mutate_at(vars(visit_start_datetime), ~ as.Date(.)) %>%
+    # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
+    filter(visit_start_datetime > "2017-01-01" & visit_start_datetime < "2025-01-01") %>% 
     group_by(visit_start_datetime, visit_concept_id) %>%
     tally() %>%
     ggplot(aes(x = visit_start_datetime, y = n,

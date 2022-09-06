@@ -44,17 +44,7 @@ params:
     input: text
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  echo = FALSE, warning = FALSE, error = FALSE,
-  out.width = "100%",
-  dpi = 300
-)
-```
-
-```{r setup}
+```{r, setup, include = FALSE}
 library(knitr)
 library(ggplot2)
 library(dplyr)
@@ -64,6 +54,15 @@ library(markovchain)
 library(stringr)
 library(readr)
 library(DBI)
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = FALSE, warning = FALSE, error = FALSE,
+  out.width = "100%",
+  dpi = 300
+)
+
 ```
 
 ```{r prepare-st}
@@ -155,7 +154,7 @@ All records that have a discharge recorded at "Patient died" should also have a 
 
 ```{r death-discharge-agreement}
 st[["visit_occurrence"]] %>%
-  filter(discharge_to_concept_id == "Patient died") %>%
+  filter(discharged_to_concept_id == "Patient died") %>%
   left_join(
     st[["death"]] %>%
       select(person_id, death_date, death_datetime) %>%
@@ -173,7 +172,7 @@ death_discrep <- overview %>%
   filter(
     !is.na(visit_concept_id) &
     (!is.na(death_datetime) | !is.na(death_date)) &
-    discharge_to_concept_id == "Patient died") %>%
+    discharged_to_concept_id == "Patient died") %>%
   group_by(person_id) %>%
   filter(max(visit_start_datetime) == visit_start_datetime) %>%
   ungroup() %>%
@@ -324,84 +323,84 @@ res_adm_toll %>%
   tab_options(table.width = pct(100))
 ```
 
-## Visit Detail
+<!-- ## Visit Detail -->
 
-Are all visits ordered sequentially:
+<!-- Are all visits ordered sequentially: -->
 
-```{r overlapping-vd}
-overlapping <- st[["visit_detail"]] %>%
-  select(person_id, visit_detail_start_datetime, visit_detail_end_datetime) %>%
-  group_by(person_id) %>%
-  arrange(person_id, visit_detail_start_datetime) %>%
-  mutate(lead_start = quick_lead(visit_detail_start_datetime)) %>%
-  mutate(overlap = lead_start < visit_detail_end_datetime) %>%
-  mutate(overlap = if_else(is.na(overlap), FALSE, overlap))
+<!-- ```{r overlapping-vd} -->
+<!-- overlapping <- st[["visit_detail"]] %>% -->
+<!--   select(person_id, visit_detail_start_datetime, visit_detail_end_datetime) %>% -->
+<!--   group_by(person_id) %>% -->
+<!--   arrange(person_id, visit_detail_start_datetime) %>% -->
+<!--   mutate(lead_start = quick_lead(visit_detail_start_datetime)) %>% -->
+<!--   mutate(overlap = lead_start < visit_detail_end_datetime) %>% -->
+<!--   mutate(overlap = if_else(is.na(overlap), FALSE, overlap)) -->
 
-overlapping %>%
-  group_by(overlap) %>%
-  tally() %>%
-  gt()
-```
+<!-- overlapping %>% -->
+<!--   group_by(overlap) %>% -->
+<!--   tally() %>% -->
+<!--   gt() -->
+<!-- ``` -->
 
-What are the lengths of stay:
+<!-- What are the lengths of stay: -->
 
-```{r length-of-stay-vd}
-cs <- tbl(ctn, in_schema(schema, "care_site")) %>%
-  collect() %>%
-  select(
-    concept_id = care_site_id,
-    concept_name = care_site_name
-  ) %>%
-  mutate(concept_id = as.integer(concept_id))
+<!-- ```{r length-of-stay-vd} -->
+<!-- cs <- tbl(ctn, in_schema(schema, "care_site")) %>% -->
+<!--   collect() %>% -->
+<!--   select( -->
+<!--     concept_id = care_site_id, -->
+<!--     concept_name = care_site_name -->
+<!--   ) %>% -->
+<!--   mutate(concept_id = as.integer(concept_id)) -->
 
-st[["visit_detail"]]$care_site_id <- match_concepts(st[["visit_detail"]]$care_site_id, cs)
+<!-- st[["visit_detail"]]$care_site_id <- match_concepts(st[["visit_detail"]]$care_site_id, cs) -->
 
-## Temporary fix
+<!-- ## Temporary fix -->
 
-st[["visit_detail"]]$care_site_id <-
-  if_else(is.na(st[["visit_detail"]]$care_site_id),
-          "Out Patient Department",
-          st[["visit_detail"]]$care_site_id)
+<!-- st[["visit_detail"]]$care_site_id <- -->
+<!--   if_else(is.na(st[["visit_detail"]]$care_site_id), -->
+<!--           "Out Patient Department", -->
+<!--           st[["visit_detail"]]$care_site_id) -->
 
-res_adm <- st[["visit_detail"]] %>%
-  mutate(
-    los = as.numeric(
-        difftime(visit_detail_end_datetime, visit_detail_start_datetime, units = "days"))) %>%
-  select(person_id, care_site_id, los)
+<!-- res_adm <- st[["visit_detail"]] %>% -->
+<!--   mutate( -->
+<!--     los = as.numeric( -->
+<!--         difftime(visit_detail_end_datetime, visit_detail_start_datetime, units = "days"))) %>% -->
+<!--   select(person_id, care_site_id, los) -->
 
-res_adm_tbl <- res_adm %>%
-  mutate(
-    `length of stay` = case_when(
-      los < 0 ~ "negative",
-      los == 0 ~ "zero",
-      los > 0 ~ "positive",
-      TRUE ~ "missing los data"
-    )
-  ) %>%
-  group_by(`length of stay`) %>%
-  tally() %>%
-  mutate(
-    total = sum(n),
-    `%` = round((n/total)*100, 0)
-  ) %>%
-  select(-total)
+<!-- res_adm_tbl <- res_adm %>% -->
+<!--   mutate( -->
+<!--     `length of stay` = case_when( -->
+<!--       los < 0 ~ "negative", -->
+<!--       los == 0 ~ "zero", -->
+<!--       los > 0 ~ "positive", -->
+<!--       TRUE ~ "missing los data" -->
+<!--     ) -->
+<!--   ) %>% -->
+<!--   group_by(`length of stay`) %>% -->
+<!--   tally() %>% -->
+<!--   mutate( -->
+<!--     total = sum(n), -->
+<!--     `%` = round((n/total)*100, 0) -->
+<!--   ) %>% -->
+<!--   select(-total) -->
 
-res_adm_toll <- tibble(
-  `length of stay` = c("negative", "zero", "positive", "missing los data"),
-  tolerance = c(1, 1, 99, 1)
-)
+<!-- res_adm_toll <- tibble( -->
+<!--   `length of stay` = c("negative", "zero", "positive", "missing los data"), -->
+<!--   tolerance = c(1, 1, 99, 1) -->
+<!-- ) -->
 
-res_adm_toll %>%
-  left_join(res_adm_tbl, by = "length of stay") %>%
-  gt() %>%
-  tab_style(
-    style = cell_fill(color = "red1", alpha = 0.5),
-    locations = cells_body(
-      rows = (`%` > tolerance & `length of stay` != "positive") |
-             (`%` < tolerance & `length of stay` == "positive")
-  )) %>%
-  tab_options(table.width = pct(100))
-```
+<!-- res_adm_toll %>% -->
+<!--   left_join(res_adm_tbl, by = "length of stay") %>% -->
+<!--   gt() %>% -->
+<!--   tab_style( -->
+<!--     style = cell_fill(color = "red1", alpha = 0.5), -->
+<!--     locations = cells_body( -->
+<!--       rows = (`%` > tolerance & `length of stay` != "positive") | -->
+<!--              (`%` < tolerance & `length of stay` == "positive") -->
+<!--   )) %>% -->
+<!--   tab_options(table.width = pct(100)) -->
+<!-- ``` -->
 
 ## Measurements
 
@@ -488,10 +487,10 @@ rmd <- meas_dq$concept_id %>%
 rmd <- paste(rmd, collapse = "\n")
 ```
 
-```{r results = "asis"}
-rendered <- knit(text = rmd, quiet = TRUE)
-cat(rendered, sep = "\n")
-```
+<!-- ```{r results = "asis"} -->
+<!-- rendered <- knit(text = rmd, quiet = TRUE) -->
+<!-- cat(rendered, sep = "\n") -->
+<!-- ``` -->
 
 
 

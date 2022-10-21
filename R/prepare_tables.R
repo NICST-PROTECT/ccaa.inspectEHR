@@ -1,3 +1,22 @@
+#' Get patients for a selected time period and return as a list
+#' Beased on this list all the tables will be filtered
+#' 
+#' @param df the dataframe which patients selects from
+#' @param start_date begining of the period
+#' @param end_date end of the period
+#' 
+#' @return 
+#' @export
+#' 
+
+get_period_patients <- function(df, start_date, end_date){
+  start_date =  as.Date(start_date, format= '%d-%m-%Y')
+  end_date = as.Date(end_date, format= '%d-%m-%Y')
+  patients <- df[(df$observation_period_start_date >= start_date) & (df$observation_period_end_date<=end_date),] %>% select('person_id')
+  patients$person_id
+  
+}
+
 #' Prepare Small Database Tables
 #'
 #' Collects and processes some of the smaller database tables:
@@ -25,7 +44,7 @@ prepare_tables <- function(connection, schema_name) {
 
   # Reading the tables in.
   tables <- c("person", "visit_occurrence", "death")
-  
+
   st <- 
     map(tables, ~collect(tbl(connection, in_schema(schema_name, .x)))) %>% 
     setNames(tables)
@@ -63,6 +82,7 @@ prepare_tables <- function(connection, schema_name) {
               as.Date
             )
           ))
+  
 }
 
 #' Prepare Overview Table
@@ -168,44 +188,10 @@ prepare_null_counts <- function(st) {
 }
 
 
-#' Prepare Cohort Boundaries
-#'
-#' @param x
-#'
-#' @importFrom dplyr summarise mutate if_else case_when
-#' @importFrom tidyr pivot_longer everything
-#'
-#' @return
-#' @export
-#'
-#' @examples
-prepare_cohort_boundaries <- function(x) {
-  x %>%
-    summarise(
-      first_visit_date = min(visit_start_date, na.rm = TRUE),
-      first_visit_dttm = min(visit_start_datetime, na.rm = TRUE),
-      last_visit_date = max(visit_start_date, na.rm = TRUE),
-      last_visit_dttm = max(visit_start_date, na.rm = TRUE),
-      first_dc_date = min(visit_end_date, na.rm = TRUE),
-      first_dc_dttm = min(visit_end_datetime, na.rm = TRUE),
-      last_dc_date = max(visit_end_date, na.rm = TRUE),
-      last_dc_dttm = max(visit_end_datetime, na.rm = TRUE)
-    ) %>%
-    tidyr::pivot_longer(everything(), names_to = "observation", values_to = "time") %>%
-    mutate(
-      comparison = if_else(
-        grepl(x = observation, pattern = "first"),
-        as.POSIXct("2020-01-01 00:00:00"),
-        Sys.time()
-      )
-    ) %>%
-    mutate(
-      tolerance = case_when(
-        grepl(x = observation, pattern = "first") & time < comparison ~ "fail",
-        grepl(x = observation, pattern = "first") & time >= comparison ~ "pass",
-        grepl(x = observation, pattern = "last") & time > comparison ~ "fail",
-        grepl(x = observation, pattern = "last") & time <= comparison ~ "pass",
-        TRUE ~ "fail"
-      )
-    )
-}
+
+
+
+
+
+
+

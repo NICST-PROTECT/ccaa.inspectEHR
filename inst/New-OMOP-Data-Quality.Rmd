@@ -1,6 +1,6 @@
 ---
 title: "OMOP Data Quality Checks Report on CCAA"
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+# date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document:
     self_contained: true
@@ -42,18 +42,31 @@ params:
     label: "Hospital name:"
     value: CCAA
     input: text
+  start_date :
+    label : "Start date"
+    value : start_date
+    input : date
+  end_date :
+    label : "End date"
+    value : end_date
+    input : date 
 ---
+
+### Reporting Period : `r {params$start_date}` - `r {params$end_date}`
 
 ```{r, setup, include = FALSE}
 library(knitr)
 library(ggplot2)
 library(dplyr)
+library(tidyr)
 library(gt)
 library(patchwork)
 library(markovchain)
 library(stringr)
 library(readr)
 library(DBI)
+library(lubridate)
+library(purrr)
 
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -66,32 +79,63 @@ knitr::opts_chunk$set(
 ```
 
 ```{r prepare-st}
+# params = list(
+#     driver = "PostgreSQL",
+#     host = "localhost",
+#     port = 5432,
+#     dbname = "cca_omop",
+#     schema = "cca_omop",
+#     user = "postgres",
+#     password = "postgres",
+#     local_hospital = "ccaa",
+#     start_date = '01-01-2020',
+#     end_date = '14-10-2022'
+#   )
 ctn <- setup_ctn(params)
 schema <- params$schema
 
-st <- prepare_tables(ctn, schema)
+observation_period = tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble() 
+observation_period <- observation_period%>% filter(person_id %in% get_period_patients(observation_period,params$start_date,params$end_date))
+
+visit_detail = tbl(ctn, in_schema(schema, "visit_detail")) %>% as_tibble()%>% filter(person_id %in% get_period_patients(observation_period,params$start_date,params$end_date))
+
+st <- prepare_tables(ctn, schema) %>%
+    map(~
+          filter(.,person_id %in% get_period_patients(observation_period,params$start_date,params$end_date)))
+
 overview <- prepare_overview(st)
 
-vo_id_true <- all(!is.na(overview$visit_occurrence_id))
-
-raw_sql <- read_file("measurement_observation_summary.sql") %>% 
+raw_sql <- read_file("measurement_observation_summary.sql") %>%
     str_replace_all(":OMOP_SCHEMA", "cca_omop")
 measurement_observation_summary <- dbGetQuery(ctn, raw_sql) %>%
     as_tibble()
 
-raw_sql <- read_file("condition_procedure_summary.sql") %>% 
+raw_sql <- read_file("condition_procedure_summary.sql") %>%
     str_replace_all(":OMOP_SCHEMA", "cca_omop")
 condition_procedure_summary <- dbGetQuery(ctn, raw_sql) %>%
     as_tibble()
 
-raw_sql <- read_file("drug_summary.sql") %>% 
+raw_sql <- read_file("drug_summary.sql") %>%
     str_replace_all(":OMOP_SCHEMA", "cca_omop")
 drug_summary <- dbGetQuery(ctn, raw_sql) %>%
     as_tibble()
+
 ```
 
 
-Check that all visit_occurrence_id is populated: `r vo_id_true`
+```{r}
+#### Important Note : Temporary all the empty discharge concept Ids marked as patient died
+st[["visit_occurrence"]][is.na(st[["visit_occurrence"]]$discharged_to_concept_id),'discharged_to_concept_id'] <- "Patient died"
+```
+
+```{r}
+add_new_check = function(qual_df,check,status,fail_count,fail_percentage){
+  new_row = c(check,status,paste(fail_count,paste('(',fail_percentage,'%)')))
+  qual_df[nrow(qual_df) + 1,] <- new_row
+  return(qual_df)
+}
+```
+
 
 ```{r}
 clinical_tbls <- prepare_tally(ctn, schema)
@@ -104,236 +148,641 @@ zero_vals <- clinical_tbls %>%
 
 ## Person Table
 
+```{r}
+data_qual_df = data.frame(matrix(ncol = 3, nrow = 0))
+colnames(data_qual_df) = c('Check','Status','If check fails : n(%)')
+```
+
 ```{r ages}
 if ("person" %in% zero_vals) {
   cat("There is no data in the person table")
 } else {
-  check_age <- min(overview$age, na.rm = TRUE) >= 18
-}
-```
-Madatory checks
-
-- Minimum age >= 0: `r check_age`
-
-
-## Visit Characteristics
-
-Date boundaries of the cohort:
-
-```{r cohort-boundaries, echo=FALSE, warning=FALSE}
-if ("visit_occurrence" %in% zero_vals) {
-  cat("There is no data in the visit_occurrence table")
-} else {
-  st[["visit_occurrence"]] %>%
-    prepare_cohort_boundaries() %>%
-    gt() %>%
-    tab_style(
-      style = cell_fill(color = "red1", alpha = 0.5),
-      locations = cells_body(
-        rows = tolerance == "fail")
-    ) %>%
-    tab_options(table.width = pct(100))
+  check_age <- min(overview$age, na.rm = TRUE) >= 0
+  check = 'Minimum age is 0'
+  if (check_age){
+    data_qual_df = add_new_check(data_qual_df,check,'Pass','0','0')
+  }else{
+    fail_count = overview %>% filter(age<0) %>% nrow()
+    fail_percentage = round(fail_count/nrow(overview)*100,5)
+    data_qual_df = add_new_check(data_qual_df,check,'Fail',fail_count,fail_percentage)
+  }
 }
 ```
 
-All deaths inside the hospital should be aligned with the final visit end datetime.
-This is an OMOP convention and doesn't necessarily mean the data is bad.
+```{r check duplicate person source values}
 
-```{r ghost-visit}
-ghost_visit <- st[["visit_occurrence"]] %>%
-  left_join(st[["death"]] %>%
-              select(person_id, death_date, death_datetime),
-            by = "person_id") %>%
-  filter(visit_start_date > death_date)
+duplicates = find_duplicates(st[["person"]],'person_source_value')
+check = 'Person Source value is not duplicated'
+if (nrow(duplicates)>0) {
+    fail_count = nrow(duplicates)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_df = add_new_check(data_qual_df,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_df = add_new_check(data_qual_df,check,'Pass','0','0')
+  }
 
-#print(testthat::expect_true(nrow(ghost_visit)))
-print(nrow(ghost_visit))
 ```
 
-All records that have a discharge recorded at "Patient died" should also have a death record in the death table.
+```{r check all person ids available in other tables}
+
+unavailable = check_id_availability(st[["person"]],'person_id',st[["visit_occurrence"]],'person_id')
+check = 'All person ids have a visit occurrence recorded'
+if (nrow(unavailable)>0) {
+    fail_count = nrow(unavailable)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_df = add_new_check(data_qual_df,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_df = add_new_check(data_qual_df,check,'Pass','0','0')
+  }
+
+unavailable = check_id_availability(st[["person"]],'person_id',observation_period,'person_id')
+check = 'All person ids have an observation period recorded'
+if (nrow(unavailable)>0) {
+    fail_count = nrow(unavailable)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_df = add_new_check(data_qual_df,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_df = add_new_check(data_qual_df,check,'Pass','0','0')
+  }
+
+```
+
+```{r check year of birth}
+
+st[['person']]$date_year = as.Date(ISOdate(st[["person"]]$year_of_birth, 1, 1))
+
+ghost_birth_year_with_obs = check_date_within(st[["person"]],'year_of_birth',observation_period,'observation_period_start_date','>=')
+
+check = 'Year of birth is same or earlier than observation start date'
+if (nrow(ghost_birth_year_with_obs)>0) {
+    fail_count = nrow(ghost_birth_year_with_obs)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_df = add_new_check(data_qual_df,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_df = add_new_check(data_qual_df,check,'Pass','0','0')
+  }
+
+ghost_birth_year_with_today = check_date_within(st[["person"]],'year_of_birth',compare_date=Sys.Date(),check_arg ='>=')
+
+check = 'Year of birth is same or earlier than current date'
+if (nrow(ghost_birth_year_with_today)>0) {
+    fail_count = nrow(ghost_birth_year_with_today)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_df = add_new_check(data_qual_df,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_df = add_new_check(data_qual_df,check,'Pass','0','0')
+  }
+
+
+```
+
+
+```{r print person table checks}
+
+data_qual_df %>% print_large_kable()
+```
+
+
+## Observation Period Table
+
+```{r}
+data_qual_Obs_p = data.frame(matrix(ncol = 3, nrow = 0))
+colnames(data_qual_Obs_p) = c('Check','Status','If check fails : n(%)')
+```
+
+
+```{r check uniqueness of ID varibales}
+
+# uniquness of observation_period_id over the person_id, start_date and end_date
+
+duplicates = find_duplicates(observation_period,c('observation_period_id','person_id','observation_period_start_date','observation_period_end_date'))
+check = 'Observation period ID is unique based on person id, observation start date and end date'
+if (nrow(duplicates)>0) {
+    fail_count = nrow(duplicates)
+    fail_percentage = round(fail_count/nrow(observation_period)*100,2)
+    data_qual_Obs_p = add_new_check(data_qual_Obs_p,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_Obs_p = add_new_check(data_qual_Obs_p,check,'Pass','0','0')
+  }
+
+```
+
+```{r obervation period start date & enad date check}
+
+ghost_obs_today = check_date_within(observation_period,'observation_period_start_date',compare_date=Sys.Date(),check_arg ='>')
+
+check = 'Observation period start date occurs before the current date'
+if (nrow(ghost_obs_today)>0) {
+    fail_count = nrow(ghost_obs_today)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_Obs_p = add_new_check(data_qual_Obs_p,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_Obs_p = add_new_check(data_qual_Obs_p,check,'Pass','0','0')
+  }
+
+ghost_obs_end = check_date_within(observation_period,'observation_period_start_date',observation_period,'observation_period_end_date',check_arg ='>')
+
+check = 'Observation period end date is after observation period start date'
+if (nrow(ghost_obs_today)>0) {
+    fail_count = nrow(ghost_obs_today)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_Obs_p = add_new_check(data_qual_Obs_p,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_Obs_p = add_new_check(data_qual_Obs_p,check,'Pass','0','0')
+  }
+
+```
+
+
+```{r print observation period checks}
+
+data_qual_Obs_p %>% print_large_kable()
+```
+
+
+## Visit Occurrence Table
+
+```{r}
+data_qual_visit_ch = data.frame(matrix(ncol = 3, nrow = 0))
+colnames(data_qual_visit_ch) = c('Check','Status','If check fails : n(%)')
+```
+
+```{r}
+vo_id_true <- all(!is.na(overview$visit_occurrence_id))
+check = 'All the visit_occurrence ids are populated'
+  if (vo_id_true){
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }else{
+    fail_count = overview %>% filter(is.null(visit_occurrence_id)) %>% nrow()
+    fail_percentage = round(fail_count/nrow(overview)*100,2)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  }
+
+```
+
+```{r}
+# uniquness of visit_occurrence_id over the person_id, start_date and end_date
+duplicates = find_duplicates(st[["visit_occurrence"]],c('visit_occurrence_id','person_id','visit_start_date','visit_end_date'))
+check = 'Visit occurrence id is unique based on person id, visit start date and end date'
+if (nrow(duplicates)>0) {
+    fail_count = nrow(duplicates)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,2)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+```
+
+```{r check negative LOS}
+not_nan_visit_occurrence_start_end = st[["visit_occurrence"]] %>% filter((!is.na(visit_start_date) & !is.na(visit_end_date)))
+
+negative_LOS = check_date_within(not_nan_visit_occurrence_start_end,'visit_start_date',not_nan_visit_occurrence_start_end,'visit_end_date','>')
+
+check = 'Visit start date is on or before the corresponding visit end date'
+if (nrow(negative_LOS)>0) {
+    fail_count = nrow(negative_LOS)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+```
+
+```{r visit occurrence start date & enad date check}
+
+## visit start date
+
+start_visit_obs = check_date_within(st[["visit_occurrence"]],'visit_start_date',observation_period,'observation_period_start_date','<')
+
+check = 'Visit start date is on or after the corresponding observation period start date'
+if (nrow(start_visit_obs)>0) {
+    fail_count = nrow(start_visit_obs)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+start_visit_obs_dt = check_date_within(st[["visit_occurrence"]],'visit_start_datetime',observation_period,'observation_period_start_date','<')
+
+check = 'Visit start date time is on or after the corresponding observation period start date'
+if (nrow(start_visit_obs_dt)>0) {
+    fail_count = nrow(start_visit_obs_dt)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+start_visit_obs_today = check_date_within(st[["visit_occurrence"]],'visit_start_date',compare_date =Sys.Date(),check_arg= '>')
+
+check = 'Visit start date is on or before the current date'
+if (nrow(start_visit_obs_today)>0) {
+    fail_count = nrow(start_visit_obs_today)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+start_visit_obs_dt_today = check_date_within(st[["visit_occurrence"]],'visit_end_datetime',compare_date =Sys.Date(),check_arg = '>')
+
+check = 'Visit start date time is on or before the current date'
+if (nrow(start_visit_obs_dt_today)>0) {
+    fail_count = nrow(start_visit_obs_dt_today)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+## visit end date
+
+end_visit_obs = check_date_within(st[["visit_occurrence"]],'visit_end_date',observation_period,'observation_period_end_date','>')
+
+check = 'Visit end date is on or before the corresponding observation period end date'
+if (nrow(end_visit_obs)>0) {
+    fail_count = nrow(start_visit_obs)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+end_visit_obs_dt = check_date_within(st[["visit_occurrence"]],'visit_end_datetime',observation_period,'observation_period_end_date','<')
+
+check = 'Visit end date time is on or before the corresponding observation period end date'
+if (nrow(end_visit_obs_dt)>0) {
+    fail_count = nrow(end_visit_obs_dt)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+end_visit_obs_today = check_date_within(st[["visit_occurrence"]],'visit_end_date',compare_date =Sys.Date(),check_arg= '>')
+
+check = 'Visit end date is on or before the current date'
+if (nrow(end_visit_obs_today)>0) {
+    fail_count = nrow(end_visit_obs_today)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+end_visit_obs_dt_today = check_date_within(st[["visit_occurrence"]],'visit_end_datetime',compare_date =Sys.Date(),check_arg = '>')
+
+check = 'Visit end date time is on or before the ccurrent date'
+if (nrow(end_visit_obs_dt_today)>0) {
+    fail_count = nrow(end_visit_obs_dt_today)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_ch = add_new_check(data_qual_visit_ch,check,'Pass','0','0')
+  }
+
+
+```
+
+```{r print visit Characteristics checks}
+
+data_qual_visit_ch %>% print_large_kable()
+```
+
+
+
+## Visit Details Table
+
+```{r}
+data_qual_visit_det = data.frame(matrix(ncol = 3, nrow = 0))
+colnames(data_qual_visit_det) = c('Check','Status','If check fails : n(%)')
+```
+
+```{r}
+# uniquness of visit_detail_id over the person_id, visit_detail_start_date and visit_detail_end_date
+duplicates = find_duplicates(visit_detail,c('visit_detail_id','person_id','visit_detail_start_date','visit_detail_end_date'))
+check = 'Visit detail id is unique based on person id, visit detail start date and end date'
+if (nrow(duplicates)>0) {
+    fail_count = nrow(duplicates)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,2)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+```
+
+```{r visit details start date check}
+
+## visit detail start date
+
+start_visit_det_obs = check_date_within(visit_detail,'visit_detail_start_date',observation_period,'observation_period_start_date','<')
+
+
+start_visit_det_dt_obs = check_date_within(visit_detail,'visit_detail_start_datetime',observation_period,'observation_period_start_date','<')
+
+check = 'Visit detail start date time is on or after the corresponding observation period start date'
+if (nrow(start_visit_det_dt_obs)>0) {
+    fail_count = nrow(start_visit_det_dt_obs)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+
+
+start_visit_det_occ = check_date_within(visit_detail,'visit_detail_start_date',st[['visit_occurrence']],'visit_start_date','<')
+
+check = 'Visit detail start date is on or after the corresponding visit occurrence start date'
+if (nrow(start_visit_det_occ)>0) {
+    fail_count = nrow(start_visit_det_occ)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+
+
+start_visit_det_dt_occ = check_date_within(visit_detail,'visit_detail_start_datetime',st[['visit_occurrence']],'visit_start_date','<')
+
+check = 'Visit detail start date time is on or after the corresponding visit occurrence start date time'
+if (nrow(start_visit_det_dt_occ)>0) {
+    fail_count = nrow(start_visit_det_dt_occ)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+
+```
+
+```{r visit details end date check}
+
+## visit detail end date
+
+end_visit_det_obs = check_date_within(visit_detail,'visit_detail_end_date',observation_period,'observation_period_end_date','>')
+
+check = 'Visit detail end date is on or before the corresponding observation period end date'
+if (nrow(end_visit_det_obs)>0) {
+    fail_count = nrow(end_visit_det_obs)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+
+observation_period$observation_period_end_date_midnight = observation_period$observation_period_end_date + hours(23)+minutes(59)+seconds(59)
+end_visit_det_dt_obs = check_date_within(visit_detail,'visit_detail_end_datetime',observation_period,'observation_period_end_date_midnight','>')
+
+check = 'Visit detail end date time is on or before the corresponding observation period end date'
+if (nrow(end_visit_det_dt_obs)>0) {
+    fail_count = nrow(end_visit_det_dt_obs)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+```
+
+```{r}
+
+end_visit_det_occ = check_date_within(visit_detail,'visit_detail_end_date',st[['visit_occurrence']],'visit_end_date','>')
+
+check = 'Visit detail end date is on or before the corresponding visit occurrence end date'
+if (nrow(end_visit_det_occ)>0) {
+    fail_count = nrow(end_visit_det_occ)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+
+
+st[['visit_occurrence']]$visit_end_date_midnight = st[['visit_occurrence']]$visit_end_date + hours(23)+minutes(59)+seconds(59)
+end_visit_det_dt_occ = check_date_within(visit_detail,'visit_detail_end_datetime',st[['visit_occurrence']],'visit_end_date_midnight','>')
+
+check = 'Visit detail end date time is on or before the corresponding visit occurrence end date time'
+if (nrow(end_visit_det_dt_occ)>0) {
+    fail_count = nrow(end_visit_det_dt_occ)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+
+```
+
+```{r}
+end_visit_det_today = check_date_within(visit_detail,'visit_detail_end_date',compare_date =Sys.Date(),check_arg = '>')
+
+check = 'Visit detail end date is on or before the current date'
+if (nrow(end_visit_det_today)>0) {
+    fail_count = nrow(end_visit_det_today)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+
+end_visit_det_dt_today = check_date_within(visit_detail,'visit_detail_end_datetime',compare_date =Sys.Date(),check_arg = '>')
+
+check = 'Visit detail end date time is on or before the ccurrent date'
+if (nrow(end_visit_det_dt_today)>0) {
+    fail_count = nrow(end_visit_det_dt_today)
+    fail_percentage = round(fail_count/nrow(visit_detail)*100,5)
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_visit_det = add_new_check(data_qual_visit_det,check,'Pass','0','0')
+  }
+```
+
+```{r print visit details checks}
+
+data_qual_visit_det %>% print_large_kable()
+```
+
+## Death Table
+
+```{r}
+data_qual_death = data.frame(matrix(ncol = 3, nrow = 0))
+colnames(data_qual_death) = c('Check','Status','If check fails : n(%)')
+```
 
 ```{r death-discharge-agreement}
-st[["visit_occurrence"]] %>%
+no_death_at_pat = st[["visit_occurrence"]] %>%
   filter(discharged_to_concept_id == "Patient died") %>%
   left_join(
     st[["death"]] %>%
       select(person_id, death_date, death_datetime) %>%
       mutate(death_record = TRUE),
     by = "person_id") %>%
-  group_by(death_record = !is.na(death_record)) %>%
-  tally() %>%
-  gt()
+  filter(is.na(death_record))
+
+
+check = 'The records that have a discharge recorded as “Patient died” also have a death record in the death table'
+if (nrow(no_death_at_pat)>0) {
+    fail_count = nrow(no_death_at_pat)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_death = add_new_check(data_qual_death,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_death = add_new_check(data_qual_death,check,'Pass','0','0')
+  }
+
 ```
 
-Deviations of more than 24 hours (by datetime) or 48 hours (by date) should be investigated:
+```{r death year with birth year}
+death_year = st[["death"]] %>% mutate(death_year = format(as.Date(death_date, format="%d/%m/%Y"),"%Y"))
 
-```{r death_discrep}
-death_discrep <- overview %>%
-  filter(
-    !is.na(visit_concept_id) &
-    (!is.na(death_datetime) | !is.na(death_date)) &
-    discharged_to_concept_id == "Patient died") %>%
-  group_by(person_id) %>%
-  filter(max(visit_start_datetime) == visit_start_datetime) %>%
-  ungroup() %>%
-  select(person_id, death_datetime, death_date, visit_end_datetime) %>%
-  mutate(
-    diff_date = as.integer(difftime(visit_end_datetime, death_date, units = "hours")),
-    diff_dttm = as.integer(difftime(visit_end_datetime, death_datetime, units = "hours")))
+death_birth_year = check_date_within(st[["person"]],'year_of_birth',death_year,'death_year',check_arg = '>')
 
-death_discrep %>%
-  summarise(
-    `death 24 hrs < visit end (dttm)` = sum(diff_dttm > 24, na.rm = TRUE),
-    `death within tolerance (dttm)` = sum(diff_dttm <= 24 & diff_dttm >= -24, na.rm = TRUE),
-    `death 24 hrs > visit end (dttm)` = sum(diff_dttm < -24, na.rm = TRUE),
-    `death 48 hrs < visit end (date)` = sum(diff_date > 48, na.rm = TRUE),
-    `death within tolerance (date)` = sum(diff_date <= 48 & diff_date >= -48, na.rm = TRUE),
-    `death 48 hrs > visit end (date)` = sum(diff_date < -48, na.rm = TRUE),
-  ) %>%
-  tidyr::pivot_longer(everything(), names_to = "tolerance test", values_to = "n") %>%
-  group_by(dttm = grepl(x = `tolerance test`, pattern = "dttm")) %>%
-  mutate(
-    total = sum(n),
-    `%` = round((n/total)*100, 0)) %>%
-  ungroup() %>%
-  mutate(tolerance = c(5, 90, 5, 5, 90, 5)) %>%
-  select(-dttm, -total) %>%
-  gt() %>%
-    tab_style(
-      style = cell_fill(color = "red1", alpha = 0.5),
-      locations = cells_body(
-        rows = (`%` < tolerance & grepl("tolerance", `tolerance test`)) |
-               (`%` > tolerance & !grepl("tolerance", `tolerance test`)))
-    ) %>%
-  tab_options(table.width = pct(100))
+check = 'Year of death is on or after the year of birth'
+if (nrow(death_birth_year)>0) {
+    fail_count = nrow(death_birth_year)
+    fail_percentage = round(fail_count/nrow(st[["person"]])*100,5)
+    data_qual_death = add_new_check(data_qual_death,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_death = add_new_check(data_qual_death,check,'Pass','0','0')
+  }
+
 ```
 
+```{r death date time with observation period}
 
-```{r death-discrepancy-plot}
-plot_min <- min(pmin(death_discrep$diff_date, death_discrep$diff_dttm), na.rm = TRUE)
-plot_max <- max(pmax(death_discrep$diff_date, death_discrep$diff_dttm), na.rm = TRUE)
+death_obs_start = check_date_within(observation_period,'observation_period_start_date',st[["death"]],'death_date',check_arg = '>')
 
-death_discrep_date <- death_discrep %>%
-  filter(!is.na(diff_date)) %>%
-  ggplot(aes(x = diff_date)) +
-  geom_density() +
-  theme_classic() +
-  ggtitle("Hours difference between visit end and death date") +
-  theme(
-    axis.text.y = element_blank(),
-    axis.title = element_blank()) +
-  lims(x = c(plot_min, plot_max))
+check = 'Death date is on or after the observation period start date'
+if (nrow(death_obs_start)>0) {
+    fail_count = nrow(death_obs_start)
+    fail_percentage = round(fail_count/nrow(observation_period)*100,5)
+    data_qual_death = add_new_check(data_qual_death,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_death = add_new_check(data_qual_death,check,'Pass','0','0')
+  }
 
-death_discrep_dttm <- death_discrep %>%
-  filter(!is.na(diff_dttm)) %>%
-  ggplot(aes(x = diff_dttm)) +
-  geom_density() +
-  theme_classic() +
-  labs(x = "time difference (hours)") +
-  ggtitle("Hours difference between visit end and death date time") +
-  theme(
-    axis.text.y = element_blank(),
-    axis.title.y = element_blank()) +
-  lims(x = c(plot_min, plot_max))
 
-death_discrep_date / death_discrep_dttm
+death_obs_end = check_date_within(observation_period,'observation_period_end_date',st[["death"]],'death_date',check_arg = '==')
+
+check = 'Death date is on the observation period end date'
+if (nrow(death_obs_end)>0) {
+    fail_count = nrow(death_obs_end)
+    fail_percentage = round(fail_count/nrow(observation_period)*100,5)
+    data_qual_death = add_new_check(data_qual_death,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_death = add_new_check(data_qual_death,check,'Pass','0','0')
+  }
 ```
 
-## Visit Occurrence
+```{r death date time with visit occurrence}
 
-Are all visits ordered sequentially:
+death_visit_start = check_date_within(st[["visit_occurrence"]],'visit_start_date',st[["death"]],'death_date',check_arg = '>')
 
-```{r overlapping-vo}
-overlapping <- overview %>%
-  select(person_id, visit_start_datetime, visit_end_datetime) %>%
-  group_by(person_id) %>%
-  arrange(person_id, visit_start_datetime) %>%
-  mutate(lead_start = quick_lead(visit_start_datetime)) %>%
-  mutate(overlap = lead_start < visit_end_datetime) %>%
-  mutate(overlap = if_else(is.na(overlap), FALSE, overlap))
+check = 'Death date is on or after the visit start date'
+if (nrow(death_visit_start)>0) {
+    fail_count = nrow(death_visit_start)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_death = add_new_check(data_qual_death,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_death = add_new_check(data_qual_death,check,'Pass','0','0')
+  }
 
-overlapping %>%
-  group_by(overlap) %>%
-  tally() %>%
-  gt()
+
+death_visit_start_dt = check_date_within(st[["visit_occurrence"]],'visit_start_datetime',st[["death"]],'death_datetime',check_arg = '>')
+
+check = 'Death date time is on or after the visit start date time'
+if (nrow(death_visit_start_dt)>0) {
+    fail_count = nrow(death_visit_start_dt)
+    fail_percentage = round(fail_count/nrow(st[["visit_occurrence"]])*100,5)
+    data_qual_death = add_new_check(data_qual_death,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_death = add_new_check(data_qual_death,check,'Pass','0','0')
+  }
+
+death_visit_start = check_date_within(st[["visit_occurrence"]],'visit_start_date',st[["death"]],'death_date',check_arg = '>')
+
 ```
 
-What are the lengths of stay:
+```{r death date with current date}
 
-```{r length-of-stay-vo}
-res_adm <- st[["visit_occurrence"]] %>%
-  mutate(
-    los = as.numeric(
-        difftime(visit_end_datetime, visit_start_datetime, units = "days"))) %>%
-  select(person_id, los)
+death_today = check_date_within(st[["death"]],'death_date',compare_date = Sys.Date(),check_arg = '>')
 
-los_plot <- res_adm %>%
-  filter(!is.na(los)) %>%
-  mutate(outlier = outliers(los)) %>%
-  mutate(los = if_else(
-    outlier == "main", los, scales::rescale(los, to = c(max(los)-0.02*max(los), max(los))))) %>%
-  ggplot(aes(x = los)) +
-  geom_density() +
-  facet_grid(cols = vars(outlier), scales = "free_x", space = "free_x") +
-  theme_classic() +
-  theme(strip.background = element_rect(fill = "grey80", colour = "grey80")) +
-  labs(x = "length of stay (days)")
+check = 'Death date is on or before today'
+if (nrow(death_today)>0) {
+    fail_count = nrow(death_today)
+    fail_percentage = round(fail_count/nrow(st[["death"]])*100,5)
+    data_qual_death = add_new_check(data_qual_death,check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_death = add_new_check(data_qual_death,check,'Pass','0','0')
+  }
+```
 
-los_tab <- ggplotGrob(los_plot)
-p_filtered <- gtable_filter_remove(los_tab, name = "axis-b-2",
-                                   trim = TRUE)
-
-grid::grid.newpage()
-grid::grid.draw(p_filtered)
+```{r print death checks}
+data_qual_death %>% print_large_kable()
 ```
 
 
-```{r negative-los-vo}
-res_adm_tbl <- res_adm %>%
-  mutate(
-    `length of stay` = case_when(
-      los < 0 ~ "negative",
-      los == 0 ~ "zero",
-      los > 0 ~ "positive",
-      TRUE ~ "missing los data"
-    )
-  ) %>%
-  group_by(`length of stay`) %>%
-  tally() %>%
-  mutate(
-    total = sum(n),
-    `%` = round((n/total)*100, 0)
-  ) %>%
-  select(-total)
 
-res_adm_toll <- tibble(
-  `length of stay` = c("negative", "zero", "positive", "missing los data"),
-  tolerance = c(1, 1, 99, 1)
-)
 
-res_adm_toll %>%
-  left_join(res_adm_tbl, by = "length of stay") %>%
-  gt() %>%
-  tab_style(
-    style = cell_fill(color = "red1", alpha = 0.5),
-    locations = cells_body(
-      rows = (`%` > tolerance & `length of stay` != "positive") |
-             (`%` < tolerance & `length of stay` == "positive")
-  )) %>%
-  tab_options(table.width = pct(100))
-```
+<!-- Deviations of more than 24 hours (by datetime) or 48 hours (by date) should be investigated: -->
 
-<!-- ## Visit Detail -->
+<!-- ```{r death_discrep} -->
+<!-- death_discrep <- overview %>% -->
+<!--   filter( -->
+<!--     !is.na(visit_concept_id) & -->
+<!--     (!is.na(death_datetime) | !is.na(death_date)) & -->
+<!--     discharged_to_concept_id == "Patient died") %>% -->
+<!--   group_by(person_id) %>% -->
+<!--   filter(max(visit_start_datetime) == visit_start_datetime) %>% -->
+<!--   ungroup() %>% -->
+<!--   select(person_id, death_datetime, death_date, visit_end_datetime) %>% -->
+<!--   mutate( -->
+<!--     diff_date = as.integer(difftime(visit_end_datetime, death_date, units = "hours")), -->
+<!--     diff_dttm = as.integer(difftime(visit_end_datetime, death_datetime, units = "hours"))) -->
+
+<!-- death_discrep %>% -->
+<!--   summarise( -->
+<!--     `death 24 hrs < visit end (dttm)` = sum(diff_dttm > 24, na.rm = TRUE), -->
+<!--     `death within tolerance (dttm)` = sum(diff_dttm <= 24 & diff_dttm >= -24, na.rm = TRUE), -->
+<!--     `death 24 hrs > visit end (dttm)` = sum(diff_dttm < -24, na.rm = TRUE), -->
+<!--     `death 48 hrs < visit end (date)` = sum(diff_date > 48, na.rm = TRUE), -->
+<!--     `death within tolerance (date)` = sum(diff_date <= 48 & diff_date >= -48, na.rm = TRUE), -->
+<!--     `death 48 hrs > visit end (date)` = sum(diff_date < -48, na.rm = TRUE), -->
+<!--   ) %>% -->
+<!--   tidyr::pivot_longer(everything(), names_to = "tolerance test", values_to = "n") %>% -->
+<!--   group_by(dttm = grepl(x = `tolerance test`, pattern = "dttm")) %>% -->
+<!--   mutate( -->
+<!--     total = sum(n), -->
+<!--     `%` = round((n/total)*100, 0)) %>% -->
+<!--   ungroup() %>% -->
+<!--   mutate(tolerance = c(5, 90, 5, 5, 90, 5)) %>% -->
+<!--   select(-dttm, -total) %>% -->
+<!--   gt() %>% -->
+<!--     tab_style( -->
+<!--       style = cell_fill(color = "red1", alpha = 0.5), -->
+<!--       locations = cells_body( -->
+<!--         rows = (`%` < tolerance & grepl("tolerance", `tolerance test`)) | -->
+<!--                (`%` > tolerance & !grepl("tolerance", `tolerance test`))) -->
+<!--     ) %>% -->
+<!--   tab_options(table.width = pct(100)) -->
+<!-- ``` -->
+
+
 
 <!-- Are all visits ordered sequentially: -->
 
-<!-- ```{r overlapping-vd} -->
-<!-- overlapping <- st[["visit_detail"]] %>% -->
-<!--   select(person_id, visit_detail_start_datetime, visit_detail_end_datetime) %>% -->
+<!-- ```{r overlapping-vo} -->
+<!-- overlapping <- overview %>% -->
+<!--   select(person_id, visit_start_datetime, visit_end_datetime) %>% -->
 <!--   group_by(person_id) %>% -->
-<!--   arrange(person_id, visit_detail_start_datetime) %>% -->
-<!--   mutate(lead_start = quick_lead(visit_detail_start_datetime)) %>% -->
-<!--   mutate(overlap = lead_start < visit_detail_end_datetime) %>% -->
+<!--   arrange(person_id, visit_start_datetime) %>% -->
+<!--   mutate(lead_start = quick_lead(visit_start_datetime)) %>% -->
+<!--   mutate(overlap = lead_start < visit_end_datetime) %>% -->
 <!--   mutate(overlap = if_else(is.na(overlap), FALSE, overlap)) -->
 
 <!-- overlapping %>% -->
@@ -344,30 +793,35 @@ res_adm_toll %>%
 
 <!-- What are the lengths of stay: -->
 
-<!-- ```{r length-of-stay-vd} -->
-<!-- cs <- tbl(ctn, in_schema(schema, "care_site")) %>% -->
-<!--   collect() %>% -->
-<!--   select( -->
-<!--     concept_id = care_site_id, -->
-<!--     concept_name = care_site_name -->
-<!--   ) %>% -->
-<!--   mutate(concept_id = as.integer(concept_id)) -->
-
-<!-- st[["visit_detail"]]$care_site_id <- match_concepts(st[["visit_detail"]]$care_site_id, cs) -->
-
-<!-- ## Temporary fix -->
-
-<!-- st[["visit_detail"]]$care_site_id <- -->
-<!--   if_else(is.na(st[["visit_detail"]]$care_site_id), -->
-<!--           "Out Patient Department", -->
-<!--           st[["visit_detail"]]$care_site_id) -->
-
-<!-- res_adm <- st[["visit_detail"]] %>% -->
+<!-- ```{r length-of-stay-vo} -->
+<!-- res_adm <- st[["visit_occurrence"]] %>% -->
 <!--   mutate( -->
 <!--     los = as.numeric( -->
-<!--         difftime(visit_detail_end_datetime, visit_detail_start_datetime, units = "days"))) %>% -->
-<!--   select(person_id, care_site_id, los) -->
+<!--         difftime(visit_end_datetime, visit_start_datetime, units = "days"))) %>% -->
+<!--   select(person_id, los) -->
 
+<!-- los_plot <- res_adm %>% -->
+<!--   filter(!is.na(los)) %>% -->
+<!--   mutate(outlier = outliers(los)) %>% -->
+<!--   mutate(los = if_else( -->
+<!--     outlier == "main", los, scales::rescale(los, to = c(max(los)-0.02*max(los), max(los))))) %>% -->
+<!--   ggplot(aes(x = los)) + -->
+<!--   geom_density() + -->
+<!--   facet_grid(cols = vars(outlier), scales = "free_x", space = "free_x") + -->
+<!--   theme_classic() + -->
+<!--   theme(strip.background = element_rect(fill = "grey80", colour = "grey80")) + -->
+<!--   labs(x = "length of stay (days)") -->
+
+<!-- los_tab <- ggplotGrob(los_plot) -->
+<!-- p_filtered <- gtable_filter_remove(los_tab, name = "axis-b-2", -->
+<!--                                    trim = TRUE) -->
+
+<!-- grid::grid.newpage() -->
+<!-- grid::grid.draw(p_filtered) -->
+<!-- ``` -->
+
+
+<!-- ```{r negative-los-vo} -->
 <!-- res_adm_tbl <- res_adm %>% -->
 <!--   mutate( -->
 <!--     `length of stay` = case_when( -->
@@ -404,95 +858,7 @@ res_adm_toll %>%
 
 ## Measurements
 
-Missing concepts are highlighted in **red**:
-
-```{r measurement1}
-meas <- tbl(ctn, in_schema(schema, "measurement")) %>%
-  group_by(measurement_concept_id) %>%
-  tally() %>%
-  collect() %>%
-  mutate(across(everything(), as.integer))
-
-# Measurements that are in the roadmap & the DB
-meas_in_ref <- meas$measurement_concept_id[meas$measurement_concept_id %in% dq_ref$concept_id]
-
-# Measurements that are not in the roadmap but appear in the DB
-meas_nin_ref <- meas$measurement_concept_id[!(meas$measurement_concept_id %in% dq_ref$concept_id)]
-
-# Measurements that appear in the DB, but are not in the roadmap
-meas_out <- dq_ref$concept_id[!(dq_ref$concept_id %in% meas$measurement_concept_id)]
-
-meas_all <- sort(unique(c(meas_in_ref, meas_nin_ref, meas_out)))
-meas_all <- mini_dict(ctn, schema, meas_all)
-
-meas_all <- meas_all %>%
-  mutate(
-    status = case_when(
-      concept_id %in% meas_in_ref ~ "Onboarded",
-      concept_id %in% meas_out ~ "Pending",
-      concept_id %in% meas_nin_ref ~ "Not in roadmap"
-  )) %>%
-  select(concept_id, concept_name, status) %>%
-  arrange(concept_id) %>%
-  left_join(meas, by = c("concept_id" = "measurement_concept_id")) %>%
-  mutate(n = if_else(is.na(n), 0L, n))
-
-meas_all %>%
-  gt() %>%
-  tab_style(
-    style = cell_fill(color = "red1", alpha = 0.5),
-    locations = cells_body(
-      rows = status == "Pending")
-  ) %>%
-  tab_options(table.width = pct(100))
-```
-
-This section details all measurements:
-
-Error codes:
-
-* **before**: sample taken before visit
-* **after**: sample taken after visit
-* **no visit**: sample taken without an associated visit
-* **duplications**: suspicious for duplicate samples
-
-
-```{r measurements2}
-meas_dq <- meas_all %>%
-  left_join(dq_ref[,c("concept_id", "short_name", "target_column",
-                      "units_concept_id", "limits")],
-            by = "concept_id")
-
-rmd <- vector(mode = "list", length = nrow(meas_dq))
-
-for (i in seq_along(meas_dq$concept_id)) {
-  if (meas_dq$status[i] == "Onboarded") {
-      rmd[[i]] <- try(knitr::knit_expand("child_measurement.Rmd",
-                                 x = meas_dq$concept_id[i]))
-  } else if (meas_dq$status[i] == "Pending") {
-      rmd[[i]] <- try(knitr::knit_expand("child_pending.Rmd",
-                                 x = meas_dq$concept_id[i]))
-  } else {
-      rmd[[i]] <- try(knitr::knit_expand("child_off_roadmap.Rmd",
-                                 x = meas_dq$concept_id[i]))
-  }
-
-}
-
-rmd <- meas_dq$concept_id %>%
-  purrr::map(
-    ~ knitr::knit_expand("child_measurement.Rmd", x = .x)
-  )
-
-rmd <- paste(rmd, collapse = "\n")
-```
-
-<!-- ```{r results = "asis"} -->
-<!-- rendered <- knit(text = rmd, quiet = TRUE) -->
-<!-- cat(rendered, sep = "\n") -->
-<!-- ``` -->
-
-
+**Measurement checks with lower and upper boundries will come here**
 
 ```{r disconnect}
 DBI::dbDisconnect(ctn)

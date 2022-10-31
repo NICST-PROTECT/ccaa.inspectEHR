@@ -201,6 +201,7 @@ setup_ctn <- function(params) {
 #' @import tidyverse
 #' @return A neatly formatted full width kable.
 print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_vars=TRUE){
+
   if(print_empty_vars == FALSE){
     table <- table %>%
       select_if(~!(all(is.na(.))))
@@ -222,4 +223,22 @@ print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_
   } else{
     cat('\n\n<!-- -->\n\n')
   }
+}
+
+# Setting a default theme
+#' @param graph A ggplot object to be formatted
+#' @import ggplot2
+#' @noRd
+custom_theme <- function(graph){
+  formatted_graph <- graph + 
+    theme_classic() +
+    theme(axis.text.x = element_text(color = "azure4", size = 8),
+          axis.text.y = element_text(color = "azure4"),
+          axis.title.x = element_text(color = "azure4", size = 10),
+          axis.title.y = element_text(color = "azure4", size = 10),
+          axis.line = element_line(color = "azure4"),
+          plot.title = element_text(color = "azure4", hjust = 0.5),
+          legend.title = element_blank(),
+          legend.text = element_text(face = "italic", color = "azure4"))
+  formatted_graph
 }

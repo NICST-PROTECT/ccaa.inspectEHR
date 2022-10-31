@@ -189,7 +189,37 @@ prepare_null_counts <- function(st) {
 
 
 
+#' add concept names for a given table
+#' 
+#' @param df the data frame we need to rename concept ids to names
 
+get_concept_names <- function(df,connection,schema_name){
+  
+  # Translating the concept IDs to names.
+  all_concepts <- df %>%
+    select(., contains("concept_id")) %>%
+          pivot_longer(everything(),
+                       names_to = "column_name",
+                       values_to = "concept_id") %>%
+    distinct(.data$concept_id, .keep_all = TRUE)
+  
+  replace_names <- mini_dict(connection, schema_name, all_concepts$concept_id)
+  
+  df <- df %>%
+    mutate(.,across(where(is.integer64), as.integer)) %>%
+    mutate(.,across(
+              c(contains("concept_id"),
+                -contains("source"),
+                contains("admitted_from_concept_id")),
+              match_concepts, lookup = replace_names)) %>%
+    mutate(.,across(
+              c(contains("date"), -contains("datetime")),
+              as.Date
+            )
+          )
+  return(df)
+  
+}
 
 
 

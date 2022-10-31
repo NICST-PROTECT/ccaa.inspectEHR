@@ -42,7 +42,17 @@ params:
     label: "Hospital name:"
     value: CCAA
     input: text
+  start_date :
+    label : "Start date"
+    value : start_date
+    input : date
+  end_date :
+    label : "End date"
+    value : end_date
+    input : date
 ---
+<br></br>
+<font size="4"> Reporting Period : `r {params$start_date}` - `r {params$end_date}` </font> 
 
 ```{r, include = FALSE}
 library(knitr)
@@ -51,29 +61,43 @@ library(dplyr)
 library(patchwork)
 library(readr)
 library(DBI)
+library(rmarkdown)
+library(stringr)
 
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  echo = FALSE, warning = FALSE, error = FALSE,
+  echo = FALSE, warning = FALSE, error = FALSE, message = FALSE,
   out.width = "100%",
   dpi = 300
 )
 ```
+<br></br>
+<br></br>
 
-## Structural Checks
+## OMOP Structure on CCAA
+![](./OMOP structure.jpg){width=100% height=25%}\
 
 ```{r prepare-st}
 
 # Connect to the database. 
 # Read core tables and prepare overview. 
 ctn <- setup_ctn(params)
+schema <- params$schema
 
-st <- prepare_tables(ctn, params$schema)
+observation_period = tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
+observation_period <- observation_period%>% filter(person_id %in% get_period_patients(observation_period,params$start_date,params$end_date))
+
+visit_detail = tbl(ctn, in_schema(schema, "visit_detail")) %>% as_tibble()%>% filter(person_id %in% get_period_patients(observation_period,params$start_date,params$end_date)) %>% get_concept_names(ctn,schema)
+
+st <- prepare_tables(ctn, schema) %>%
+    map(~
+          filter(.,person_id %in% get_period_patients(observation_period,params$start_date,params$end_date)))
+
 overview <- prepare_overview(st)
 
 # Getting counts of all the tables.
-table_counts <- prepare_tally(ctn, params$schema)
+table_counts <- prepare_tally(ctn, schema)
 
 zero_vals <- table_counts %>%
   filter(n == 0) %>%
@@ -82,17 +106,17 @@ zero_vals <- table_counts %>%
 
 measurement_observation_summary <- read_file(system.file("measurement_observation_summary.sql", 
                                                          package = "ccaa.inspectEHR")) %>% 
-    str_replace_all(":OMOP_SCHEMA", params$schema) %>% 
+    str_replace_all(":OMOP_SCHEMA", schema) %>% 
   dbGetQuery(ctn, .) %>%
     as_tibble()
 
 condition_procedure_summary <- read_file(system.file("condition_procedure_summary.sql", package = "ccaa.inspectEHR")) %>% 
-    str_replace_all(":OMOP_SCHEMA", params$schema) %>% 
+    str_replace_all(":OMOP_SCHEMA", schema) %>% 
   dbGetQuery(ctn, .) %>%
     as_tibble()
 
 drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspectEHR")) %>% 
-    str_replace_all(":OMOP_SCHEMA", params$schema) %>% 
+    str_replace_all(":OMOP_SCHEMA", schema) %>% 
   dbGetQuery(ctn, .) %>%
     as_tibble()
 
@@ -137,6 +161,8 @@ summary %>%
   print_large_kable()
 ```
 
+<br>
+<br>
 
 ## Person Table
 
@@ -144,17 +170,20 @@ summary %>%
 if ("person" %in% zero_vals) {
   cat("There is no data in the person table")
 } else {
-  age_plot <- plot_age(overview)
+  age_plot <- plot_age(overview)%>% custom_theme()
   check_age <- min(overview$age, na.rm = TRUE) >= 18
 
-  sex_plot <- plot_sex(st[["person"]])
-  ethnic_plot <- plot_ethnicity(st[["person"]])
+  sex_plot <- plot_sex(st[["person"]]) %>% custom_theme()
+  ethnic_plot <- plot_ethnicity(st[["person"]])%>% custom_theme()
 
   age_plot + sex_plot + ethnic_plot
 }
 ```
 
-## Visit Characteristics
+<br>
+<br>
+
+## Visit Occurence
 
 Number of visits stratified by visit type:
 
@@ -171,12 +200,12 @@ if (!("visit_occurrence" %in% zero_vals)) {
 ```
 
 ```{r visit-profile}
-plot_visit_profile(st[["visit_occurrence"]])
+plot_visit_profile(st[["visit_occurrence"]])%>% custom_theme()
 ```
 
 ```{r admission-from1}
 asci <- vo_ans %>%
-  filter(target_columnn == "admitted_from_concept_id") %>%
+  filter(target_columnn == "admitting_source_concept_id") %>%
   select(concept_id, concept_name) %>%
   distinct()
 
@@ -188,7 +217,7 @@ st[["visit_occurrence"]] %>%
 ```
 
 ```{r admission-from2}
-st[["visit_occurrence"]] %>%
+admission_from_plot <- st[["visit_occurrence"]] %>%
   mutate(admitted_from_concept_id = forcats::fct_infreq(as.character(admitted_from_concept_id))) %>%
   group_by(admitted_from_concept_id) %>%
   tally() %>%
@@ -199,9 +228,9 @@ st[["visit_occurrence"]] %>%
     y = 0,
     yend = n,
     xend = admitted_from_concept_id)) +
-  scale_colour_manual(values = c("red", "black"), drop = FALSE) +
+  scale_colour_manual(values = c("#379481", "#4CA1CB"), drop = FALSE) +
   theme_classic() +
-  labs(y = "count") +
+  labs(y = "Count", x = "Type") +
   theme(
     legend.position = "none",
     plot.title.position = "plot",
@@ -214,7 +243,7 @@ Discharge codes outside the approved list:
 
 ```{r discharge-to1}
 dtci <- vo_ans %>%
-  filter(target_columnn == "discharged_to_concept_id") %>%
+  filter(target_columnn == "discharge_to_concept_id") %>%
   select(concept_id, concept_name) %>%
   distinct()
 
@@ -226,7 +255,7 @@ st[["visit_occurrence"]] %>%
 ```
 
 ```{r discharge-to2}
-st[["visit_occurrence"]] %>%
+discharge_to_plot <- st[["visit_occurrence"]] %>%
   mutate(discharged_to_concept_id = forcats::fct_infreq(as.character(discharged_to_concept_id))) %>%
   group_by(discharged_to_concept_id) %>%
   tally() %>%
@@ -237,16 +266,44 @@ st[["visit_occurrence"]] %>%
     y = 0,
     yend = n,
     xend = discharged_to_concept_id)) +
-  scale_colour_manual(values = c("red", "black"), drop = FALSE) +
+  scale_colour_manual(values = c("#379481", "#4CA1CB"), drop = FALSE) +
   theme_classic() +
-  labs(y = "count") +
+  labs(y = "Count", x = "Type") +
   theme(
     legend.position = "none",
     plot.title.position = "plot",
     axis.title.y = element_blank()) +
   coord_flip() +
   ggtitle("Discharge To")
+
 ```
+
+```{r plot both admission from and discharge to}
+admission_from_plot%>% custom_theme() + discharge_to_plot%>% custom_theme()
+```
+
+<br>
+<br>
+
+## Visit Detail
+```{r visit_detail-types}
+if (!("visit_detail" %in% zero_vals)) {
+  visit_detail %>%
+    group_by(visit_detail_concept_id) %>%
+    summarise(
+      count = n(),
+      percentage = round((n()/nrow(visit_detail))*100, 0)
+    ) %>% 
+    print_large_kable()
+}
+```
+
+```{r visit-detail-profile}
+plot_visit_detail_profile(visit_detail)%>% custom_theme()
+```
+
+<br>
+<br>
 
 ## Outcomes
 
@@ -266,13 +323,13 @@ overview %>%
   print_large_kable()
 ```
 
-## Distributions of Times
+### Distributions of Times
 
 Typically patients are admitted earlier in the day, and discarged later.
 Death often has a uniform distribution, with perhaps a slight peak in the early morning or later afternoon.
 
 ```{r outcome-dist}
-overview %>%
+outcome_dist <- overview %>%
   select(visit_start_datetime, visit_end_datetime, death_datetime) %>%
   mutate_all(~ as.POSIXct(., tz = "UTC")) %>%
   filter_all(any_vars(!is.na(.))) %>%
@@ -280,28 +337,61 @@ overview %>%
   tidyr::pivot_longer(everything(), names_to = "time_point", values_to = "time") %>%
   ggplot(aes(x = time, fill = time_point)) +
   geom_density(alpha = 0.5) +
-  theme_classic() +
-  labs(x = "event time distribution", fill = "event") +
-  theme(legend.position = "bottom")
-```
+  labs(x = "Event time distribution", fill = "Event", y="Density") +
+  theme(legend.position = "bottom")+
+    scale_fill_manual(values = c("#569FB2",
+                                 "#3AB8EE",
+                                 "#6BF2F2",
+                                 "#00C7C7"))
+outcome_dist%>%custom_theme()
 
-### Measurements and observations
+```
+<br>
+<br>
+
+## Measurements
 The 50 most common concepts are displayed.
 ```{r}
 measurement_observation_summary %>%
-  print_large_kable(max_rows = 50)
+  filter(table_name=="measurement")%>%
+  select(-c(table_name,most_frequent_string))%>%
+  print_large_kable(max_rows = 50)%>%
+      scroll_box(width = "100%", height = "500px",
+                 box_css = "border: 1px solid #ddd; Padding-left: 20px")
 ```
 
-### Condition and procedure occurence.
+<br>
+<br>
+
+## Observations
+The 50 most common concepts are displayed.
+```{r}
+measurement_observation_summary %>%
+  filter(table_name=="observation")%>%
+  select(-c(table_name))%>%
+  print_large_kable(max_rows = 50)%>%
+      scroll_box(width = "100%", height = "500px",
+                 box_css = "border: 1px solid #ddd; Padding-left: 20px")
+```
+<br>
+<br>
+
+## Condition and Procedure Occurence.
 The 50 most common concepts are displayed.
 ```{r}
 condition_procedure_summary %>%
-  print_large_kable(max_rows = 50)
+  print_large_kable(max_rows = 50)%>%
+      scroll_box(width = "100%", height = "500px",
+                 box_css = "border: 1px solid #ddd; Padding-left: 20px")
 ```
+<br>
+<br>
 
-### Drug exposure
+## Drug Exposure
 The 50 most common concepts are displayed.
 ```{r}
 drug_summary %>%
-  print_large_kable(max_rows = 50)
+  print_large_kable(max_rows = 50)%>%
+      scroll_box(width = "100%", height = "500px",
+                 box_css = "border: 1px solid #ddd; Padding-left: 20px")
 ```

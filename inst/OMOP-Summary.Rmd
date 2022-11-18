@@ -1,5 +1,5 @@
 ---
-title: "OMOP Summary Report on CCAA"
+title: "CCAA Repository Summary Report"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document:
@@ -50,9 +50,25 @@ params:
     label : "End date"
     value : end_date
     input : date
+  measurement_tolerance :
+    label : "Measurement Toerance(%)"
+    value : measurement_tolerance
+    input : numeric
 ---
-<br></br>
-<font size="4"> Reporting Period : `r {params$start_date}` - `r {params$end_date}` </font> 
+<style type="text/css">
+
+h1.title {
+  font-size: 38px;
+  text-align: center;
+}
+h4.date {
+  font-size: 18px;
+  text-align: center;
+}
+</style>
+
+<br>
+<font size="4"> Reporting Period : `r {params$start_date}` to `r {params$end_date}` </font> 
 
 ```{r, include = FALSE}
 library(knitr)
@@ -72,13 +88,22 @@ knitr::opts_chunk$set(
   dpi = 300
 )
 ```
-<br></br>
-<br></br>
 
-## OMOP Structure on CCAA
-![](./OMOP structure.jpg){width=100% height=25%}\
 
 ```{r prepare-st}
+
+# params = list(
+#     driver = "PostgreSQL",
+#     host = "localhost",
+#     port = 5432,
+#     dbname = "cca_omop",
+#     schema = "cca_omop",
+#     user = "postgres",
+#     password = "postgres",
+#     local_hospital = "ccaa",
+#     start_date = '01-01-2020',
+#     end_date = '31-10-2022'
+#   )
 
 # Connect to the database. 
 # Read core tables and prepare overview. 
@@ -120,7 +145,25 @@ drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspec
   dbGetQuery(ctn, .) %>%
     as_tibble()
 
+glossary = read_csv(file =system.file("data", "glossary.csv",package = 'ccaa.inspectEHR'))
+
 DBI::dbDisconnect(ctn)
+```
+
+<br></br>
+<br></br>
+
+## OMOP Structure on CCAA
+![](./OMOP structure.jpg){width=100% height=25%}\
+
+<br>
+
+## Glossary
+
+```{r}
+glossary %>% print_large_kable()%>%
+  column_spec(1,width='25%') %>%
+  column_spec(2:ncol(glossary),width='75%')
 ```
 
 ```{r row-counts}
@@ -154,7 +197,7 @@ summary <- bind_rows(summary, c(c(variable = "Number of drug exposures"),
                                 value = filter(table_counts, table == "drug_exposure") %>% pull(n)))
 ```
 
-### General counts
+## General counts
 ```{r}
 summary %>%
   mutate(value = as.integer(value)) %>% 
@@ -204,13 +247,7 @@ plot_visit_profile(st[["visit_occurrence"]])%>% custom_theme()
 ```
 
 ```{r admission-from1}
-asci <- vo_ans %>%
-  filter(target_columnn == "admitting_source_concept_id") %>%
-  select(concept_id, concept_name) %>%
-  distinct()
-
 st[["visit_occurrence"]] %>%
-  filter(!(admitted_from_concept_id %in% asci$concept_name)) %>%
   group_by(admitted_from_concept_id) %>%
   tally() %>%
   print_large_kable()
@@ -239,16 +276,8 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
   ggtitle("Admission Source")
 ```
 
-Discharge codes outside the approved list:
-
 ```{r discharge-to1}
-dtci <- vo_ans %>%
-  filter(target_columnn == "discharge_to_concept_id") %>%
-  select(concept_id, concept_name) %>%
-  distinct()
-
 st[["visit_occurrence"]] %>%
-  filter(!(discharged_to_concept_id %in% dtci$concept_name)) %>%
   group_by(discharged_to_concept_id) %>%
   tally() %>%
   print_large_kable()
@@ -325,7 +354,7 @@ overview %>%
 
 ### Distributions of Times
 
-Typically patients are admitted earlier in the day, and discarged later.
+Typically patients are admitted earlier in the day, and discharged later.
 Death often has a uniform distribution, with perhaps a slight peak in the early morning or later afternoon.
 
 ```{r outcome-dist}

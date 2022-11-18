@@ -1,2 +1,6 @@
 Variable,Lower bound,Upper bound
-heart_rate,0,300
+heart_rate,0,450
+temperature,32,115
+respiratory_rate,0,100
+diastolic_blood_pressure,0,200
+systolic_blood_pressure,0,400

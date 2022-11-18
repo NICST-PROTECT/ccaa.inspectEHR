@@ -96,15 +96,13 @@ get_source_concept_id <- function(measure_field, mapping_sheet){
 
 check_measure_bounds <- function(measurement,bound_df, check_df){
 
-  lower_bound <- bound_df %>% filter(Variable==measurement)%>%pull(`Lower.bound`)
-  upper_bound <- bound_df %>% filter(Variable==measurement)%>%pull(`Upper.bound`)
+  lower_bound <- bound_df %>% filter(Variable==measurement)%>%pull(`Lower bound`)
+  upper_bound <- bound_df %>% filter(Variable==measurement)%>%pull(`Upper bound`)
   
   abnormal_df =  check_df %>% filter(value_as_number< lower_bound | value_as_number > upper_bound)
   return(abnormal_df)
   
 }
-
-
 
 
 

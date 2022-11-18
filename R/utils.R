@@ -217,7 +217,7 @@ print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_
       mutate_if(is.character, ~ str_replace_all(.x, "\\n", "<br>")) %>%
       mutate_if(is.character, ~ str_replace_all(.x, "\\^", "\\\\^")) %>%
       kable(format.args = list(big.mark = ","),
-            caption = paste0(caption, " printed ", max_rows, " out of ", n_rows),
+            caption = paste0(caption, " Printed ", max_rows, " out of ", n_rows),
             digits = 2, escape = FALSE, format = "html", align = "l") %>%
       kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = TRUE)
   } else{

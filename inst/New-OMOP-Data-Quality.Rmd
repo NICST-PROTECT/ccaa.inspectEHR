@@ -222,6 +222,16 @@ if (nrow(unavailable)>0) {
     data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Pass','0','0')
   }
 
+unavailable = check_id_availability(st[["person"]],'person_id',visit_detail,'person_id')
+check = 'All person IDs have an visit detail recorded'
+if (nrow(unavailable)>0) {
+    fail_count = nrow(unavailable)
+    fail_percentage = format(round(fail_count/nrow(st[["person"]])*100,4),scientific = F)
+    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Fail',fail_count,fail_percentage)
+  } else {
+    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Pass','0','0')
+  }
+
 ```
 
 ```{r check year of birth}

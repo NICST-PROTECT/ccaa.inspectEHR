@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# d.inspectEHR
+# ccaa.inspectEHR
 
 <!-- badges: start -->
 
@@ -9,31 +9,19 @@
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
 <!-- badges: end -->
 
-This package uses Ed’s d.inspectEHR package to produce the data quality
-and summary reports on OMOP. Prior to running these reports, sites
-*must* apply the DECOVID ddls and *should* try to run ACHILLES against
-their OMOP database.
+The aim of ccaa.inspectEHR is to provide a high-level profile, and data quality evaluation of a critical care database in OMOP format. The package produces 2 html reports, one describing the data available, and one applying a set of data quality checks based on the [Khan framework](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5051581/).
 
-## Using the package as a user
+The package is based on a [simillar quality evaluation](https://github.com/DocEd/d.inspectEHR) for the DeCovid project. 
+
+Users must have an SQL database conforming to the OMOP v5.4 specifications. 
 
 ### Installation
 
 You can install the development version of ccaa.inspectEHR from
-[GitHub](https://github.com/DocEd/d.inspectEHR) with:
+[GitHub](https://github.com/NICST-PROTECT/ccaa.inspectEHR) with:
 
 ``` r
-remotes::install_github("DocEd/d.inspectEHR")
-```
-
-To run the reports as an end user, install from github first (will only
-work if you have access to the repo). If you don’t have a personal
-access token, generate it using the instructions here.
-<https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token>
-
-Then run the function below using the token generated.
-
-``` r
-devtools::install_github("NICST-PROTECT/ccaa.inspectEHR", auth_token = "your_PAT")
+remotes::install_github("NICST-PROTECT/ccaa.inspectEHR")
 ```
 
 ### Running the Report
@@ -46,7 +34,7 @@ The report can be run by running the following code.
   *measurement_tolerance*
 
 ``` r
-library(d.inspectEHR)
+library(ccaa.inspectEHR)
 
 render_summary_report(
   output = "Summary_report.html",
@@ -82,20 +70,3 @@ render_quality_report(
   )
 )
 ```
-
-## Run as a developer
-
-If you intend to edit code, clone the repo, double click the .Rproj file
-to open, and use devtools::load_all() to make the functions available in
-the environment. Follow the instructions above to actually knit the
-reports. General information on package development here.
-<https://r-pkgs.org>
-
-### Rules for contributing
-
-- Create a new branch and send Aasiyah a pull request review.
-- Also share sample generated PDFs.
-- Never add generated PDFs to this repo, because it increases the
-  package size.
-- Use roxygen documentation for any functions you create. If it’s not
-  meant to be accessible to users, add the @noRd tag.

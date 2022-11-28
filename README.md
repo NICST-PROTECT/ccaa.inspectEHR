@@ -83,7 +83,7 @@ render_quality_report(
 )
 ```
 
-## Run as developer
+## Run as a developer
 
 If you intend to edit code, clone the repo, double click the .Rproj file
 to open, and use devtools::load_all() to make the functions available in

@@ -100,6 +100,8 @@ plot_ethnicity <- function(x) {
 #' Plot Visit Profile
 #'
 #' @param x
+#' @param start_date starting date for x axis
+#' @param end_date ending dare for x axis
 #'
 #' @importFrom dplyr mutate_at vars group_by tally
 #' @importFrom ggplot2 ggplot aes geom_path theme labs
@@ -108,28 +110,28 @@ plot_ethnicity <- function(x) {
 #' @export
 #'
 #' @examples
-plot_visit_profile <- function(x) {
+plot_visit_profile <- function(x,start_date,end_date,custom_colors) {
   x %>%
-    mutate_at(vars(visit_start_datetime), ~ as.Date(.)) %>%
+    mutate_at(vars(visit_start_date), ~ as.Date(.)) %>%
     # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
-    filter(visit_start_datetime > "2017-01-01" & visit_start_datetime <= Sys.Date()) %>% 
-    group_by(visit_start_datetime, visit_concept_id) %>%
+    filter((visit_start_date >= as.Date(start_date,format = '%d-%m-%Y'))  & (visit_start_date <= as.Date(end_date,format = '%d-%m-%Y'))) %>% 
+    group_by(visit_start_date, visit_concept_id) %>%
     tally() %>%
-    ggplot(aes(x = visit_start_datetime, y = n,
+    ggplot(aes(x = visit_start_date, y = n,
                group = visit_concept_id, colour = visit_concept_id)) +
     geom_path() +
     theme_d() +
     labs(y = "Daily number of patient attendances", x = "Arrival date", colour = "Visit type") +
     theme(legend.position = "bottom") +
     ggtitle("Admission profile by type of admission")+
-    scale_color_manual(values = c("#379481",
-                                  "#4CA1CB",
-                                  "#3AB8EE"))
+    scale_color_manual(values = custom_colors)
 }
 
 #' Plot Visit detail Profile
 #'
 #' @param x
+#' @param start_date starting date for x axis
+#' @param end_date ending dare for x axis
 #'
 #' @importFrom dplyr mutate_at vars group_by tally
 #' @importFrom ggplot2 ggplot aes geom_path theme labs
@@ -138,24 +140,22 @@ plot_visit_profile <- function(x) {
 #' @export
 #'
 #' @examples
-plot_visit_detail_profile <- function(x) {
+plot_visit_detail_profile <- function(x,start_date,end_date,custom_colors) {
   x %>%
     mutate_at(vars(visit_detail_start_datetime), ~ as.Date(.)) %>%
     mutate_at(vars(visit_detail_concept_id), ~ as.character(.)) %>%
     # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
-    filter(visit_detail_start_datetime > "2017-01-01" & visit_detail_start_datetime <= Sys.Date()) %>% 
-    group_by(visit_detail_start_datetime, visit_detail_concept_id) %>%
+    filter((visit_detail_start_date > as.Date(start_date,format = '%d-%m-%Y')) & (visit_detail_start_date <= as.Date(end_date,format = '%d-%m-%Y'))) %>% 
+    group_by(visit_detail_start_date, visit_detail_concept_id) %>%
     tally() %>%
-    ggplot(aes(x = visit_detail_start_datetime, y = n,
+    ggplot(aes(x = visit_detail_start_date, y = n,
                group = visit_detail_concept_id, colour = visit_detail_concept_id)) +
     geom_path() +
     theme_d() +
     labs(y = "Daily number of patients in visit details", x = "Date", colour = "Visit type") +
     theme(legend.position = "bottom") +
     ggtitle("Daily observation profile by type of observation")+
-    scale_color_manual(values = c("#379481",
-                                  "#4CA1CB",
-                                  "#3AB8EE"))
+    scale_color_manual(values = custom_colors)
 }
 
 #' DECOVID Plot Theme

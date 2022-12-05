@@ -9,6 +9,14 @@ output:
 editor_options: 
   chunk_output_type: console
 params:
+  output:
+    label: "Output Name"
+    value: output
+    input: text
+  output_path:
+    label: "Output Path"
+    value: output_path
+    input: text
   driver:
     label: "Driver:"
     value: PostgreSQL
@@ -54,6 +62,10 @@ params:
     label : "Measurement Toerance(%)"
     value : measurement_tolerance
     input : numeric
+  custom_colors :
+    label : "Custom Colors"
+    value : custom_colors
+    input : list
 ---
 <style type="text/css">
 
@@ -147,7 +159,6 @@ drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspec
 
 glossary = read_csv(file =system.file("data", "glossary.csv",package = 'ccaa.inspectEHR'))
 
-DBI::dbDisconnect(ctn)
 ```
 
 <br></br>
@@ -213,11 +224,11 @@ summary %>%
 if ("person" %in% zero_vals) {
   cat("There is no data in the person table")
 } else {
-  age_plot <- plot_age(overview)%>% custom_theme()
+  age_plot <- plot_age(overview)%>% custom_theme(params$custom_colors)
   check_age <- min(overview$age, na.rm = TRUE) >= 18
 
-  sex_plot <- plot_sex(st[["person"]]) %>% custom_theme()
-  ethnic_plot <- plot_ethnicity(st[["person"]])%>% custom_theme()
+  sex_plot <- plot_sex(st[["person"]]) %>% custom_theme(params$custom_colors)
+  ethnic_plot <- plot_ethnicity(st[["person"]])%>% custom_theme(params$custom_colors)
 
   age_plot + sex_plot + ethnic_plot
 }
@@ -243,7 +254,7 @@ if (!("visit_occurrence" %in% zero_vals)) {
 ```
 
 ```{r visit-profile}
-plot_visit_profile(st[["visit_occurrence"]])%>% custom_theme()
+plot_visit_profile(st[["visit_occurrence"]],params$start_date,params$end_date,params$custom_colors)%>% custom_theme(params$custom_colors)
 ```
 
 ```{r admission-from1}
@@ -265,7 +276,7 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
     y = 0,
     yend = n,
     xend = admitted_from_concept_id)) +
-  scale_colour_manual(values = c("#379481", "#4CA1CB"), drop = FALSE) +
+  scale_colour_manual(values = params$custom_colors, drop = FALSE) +
   theme_classic() +
   labs(y = "Count", x = "Type") +
   theme(
@@ -295,7 +306,7 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
     y = 0,
     yend = n,
     xend = discharged_to_concept_id)) +
-  scale_colour_manual(values = c("#379481", "#4CA1CB"), drop = FALSE) +
+  scale_colour_manual(values = params$custom_colors, drop = FALSE) +
   theme_classic() +
   labs(y = "Count", x = "Type") +
   theme(
@@ -308,7 +319,7 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
 ```
 
 ```{r plot both admission from and discharge to}
-admission_from_plot%>% custom_theme() + discharge_to_plot%>% custom_theme()
+admission_from_plot%>% custom_theme(params$custom_colors) + discharge_to_plot%>% custom_theme(params$custom_colors)
 ```
 
 <br>
@@ -328,7 +339,7 @@ if (!("visit_detail" %in% zero_vals)) {
 ```
 
 ```{r visit-detail-profile}
-plot_visit_detail_profile(visit_detail)%>% custom_theme()
+plot_visit_detail_profile(visit_detail,params$start_date,params$end_date,params$custom_colors)%>% custom_theme(params$custom_colors)
 ```
 
 <br>
@@ -368,11 +379,8 @@ outcome_dist <- overview %>%
   geom_density(alpha = 0.5) +
   labs(x = "Event time distribution", fill = "Event", y="Density") +
   theme(legend.position = "bottom")+
-    scale_fill_manual(values = c("#569FB2",
-                                 "#3AB8EE",
-                                 "#6BF2F2",
-                                 "#00C7C7"))
-outcome_dist%>%custom_theme()
+    scale_fill_manual(values = params$custom_colors)
+outcome_dist%>%custom_theme(params$custom_colors)
 
 ```
 <br>
@@ -424,3 +432,9 @@ drug_summary %>%
       scroll_box(width = "100%", height = "500px",
                  box_css = "border: 1px solid #ddd; Padding-left: 20px")
 ```
+
+
+```{r}
+DBI::dbDisconnect(ctn)
+```
+

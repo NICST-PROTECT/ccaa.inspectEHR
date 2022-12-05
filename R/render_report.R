@@ -15,16 +15,17 @@
 #'
 #' @return
 #' @export
-render_summary_report <- function(output = NULL, params = "ask") {
+render_summary_report <- function(params = "ask") {
 
-  if (is.null(output)) {
+  if (is.null(params$output)) {
     rlang::abort("please provide an output file path")
   }
 
   report_pth <- system.file("OMOP-Summary.Rmd", package = "ccaa.inspectEHR")
   rmarkdown::render(report_pth, params = params,
-                    output_file = output,
-                    envir = new.env())
+                    output_file = params$output,
+                    envir = new.env(),
+                    output_dir = params$output_path)
 }
 
 
@@ -45,14 +46,15 @@ render_summary_report <- function(output = NULL, params = "ask") {
 #'
 #' @return
 #' @export
-render_quality_report <- function(output = NULL, params = "ask") {
+render_quality_report <- function(params = "ask") {
 
-  if (is.null(output)) {
+  if (is.null(params$output)) {
     rlang::abort("please provide an output file path")
   }
 
-  report_pth <- system.file("New-OMOP-Data-Quality.Rmd", package = "ccaa.inspectEHR")
+  report_pth <- system.file("OMOP-Data-Quality.Rmd", package = "ccaa.inspectEHR")
   rmarkdown::render(report_pth, params = params,
-                    output_file = output,
-                    envir = new.env())
+                    output_file = params$output,
+                    envir = new.env(),
+                    output_dir = params$output_path)
 }

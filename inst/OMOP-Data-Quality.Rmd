@@ -9,6 +9,14 @@ output:
 editor_options: 
   chunk_output_type: console
 params:
+  output:
+    label: "Output Name"
+    value: output
+    input: text
+  output_path:
+    label: "Output Path"
+    value: output_path
+    input: text
   driver:
     label: "Driver:"
     value: PostgreSQL

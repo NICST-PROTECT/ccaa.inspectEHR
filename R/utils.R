@@ -7,7 +7,7 @@
 #'
 #' @return
 #' @export
-match_concepts <- function(column, lookup) {
+match_concepts <- function(column, lookup){
 
   if (all(is.na(column))) {
     return(column)
@@ -16,34 +16,6 @@ match_concepts <- function(column, lookup) {
   }
 }
 
-#' Tally OMOP Concept ID Column
-#'
-#' @param ctn a database connection object
-#' @param schema the database schema
-#' @param table the OMOP target table
-#' @param concept_col the concept_id target column (but be \code{..._concept_id})
-#'
-#' @importFrom dplyr tbl group_by filter select tally collect mutate across
-#' @importFrom dbplyr in_schema
-#' @importFrom tidyselect everything
-#' @importFrom rlang .data !!
-#' @importFrom magrittr `%>%`
-#'
-#' @return
-#' @export
-tally_concept <- function(ctn, schema, table, concept_col) {
-  x <- tbl(src = ctn, in_schema(schema = schema, table = table)) %>%
-    group_by(.data[[concept_col]]) %>%
-    tally() %>%
-    collect() %>%
-    mutate(across(everything(), as.integer))
-
-  dict <- mini_dict(ctn, schema, x[[concept_col]])
-
-  x[[concept_col]] <- match_concepts(x[[concept_col]], dict)
-
-  return(x)
-}
 
 #' Create a mini concept dictionary
 #'
@@ -71,28 +43,6 @@ mini_dict <- function(ctn, schema, concept_ids) {
     mutate(concept_id = as.integer(.data$concept_id))
 }
 
-#' Summarise Missing Values within a Dataframe
-#'
-#' @param x a dataframe
-#' @param tbl_name the OMOP table name of \code{x}
-#'
-#' @importFrom dplyr summarise across mutate
-#' @importFrom tidyselect everything
-#' @importFrom tidyr pivot_longer
-#' @importFrom tibble add_column
-#' @importFrom magrittr `%>%`
-#'
-#' @return
-#' @export
-summarise_missing <- function(x, tbl_name) {
-  x %>%
-    summarise(across(everything(), ~ sum(is.na(.)))) %>%
-    pivot_longer(everything(),
-                 names_to = "column",
-                 values_to = "n rows missing") %>%
-    add_column(table = tbl_name, .before = TRUE) %>%
-    mutate(`% rows missing` = round((`n rows missing`/nrow(x))*100, 0))
-}
 
 #' Check which rows contain zero
 #'
@@ -131,24 +81,6 @@ outliers <- function(x, probs = 0.99) {
   if_else(x >= boundary, "outlier", "main")
 }
 
-#' Remove elements from ggplot at Glob level
-#'
-#' @param x the ggplot after being parsed as a gtable
-#' @param name the glob element name
-#' @param trim logical flag
-#'
-#' @return
-#' @export
-#'
-#' @importFrom gtable gtable_trim
-gtable_filter_remove <- function (x, name, trim = TRUE){
-  matches <- !(x$layout$name %in% name)
-  x$layout <- x$layout[matches, , drop = FALSE]
-  x$grobs <- x$grobs[matches]
-  if (trim)
-    x <- gtable_trim(x)
-  x
-}
 
 is.integer64 <- function(x) {
   check_class <- class(x)
@@ -167,6 +99,7 @@ get_db_driver <- function(params) {
   }
   return(this_drv)
 }
+
 
 setup_ctn <- function(params) {
   this_drv <- get_db_driver(params)
@@ -229,7 +162,7 @@ print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_
 #' @param graph A ggplot object to be formatted
 #' @import ggplot2
 #' @noRd
-custom_theme <- function(graph){
+custom_theme <- function(graph,colour_list){
   formatted_graph <- graph + 
     theme_classic() +
     theme(axis.text.x = element_text(color = "azure4", size = 8),
@@ -239,6 +172,6 @@ custom_theme <- function(graph){
           axis.line = element_line(color = "azure4"),
           plot.title = element_text(color = "azure4", hjust = 0.5),
           legend.title = element_blank(),
-          legend.text = element_text(face = "italic", color = "azure4"))
+          legend.text = element_text(face = "italic", color = colour_list))
   formatted_graph
 }

@@ -4,5 +4,8 @@
 .Ruserdata
 docs
 secrets.R
+*.html
+*.RDataTmp
+.RDataTmp1
 **desktop.ini*
 .idea/

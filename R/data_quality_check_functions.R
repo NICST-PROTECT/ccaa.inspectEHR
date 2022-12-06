@@ -4,7 +4,6 @@
 #' @param column the column interested within ''
 #'
 #' @return
-#' @export
 #'
 find_duplicates <- function(dataset,column) {
   dataset = data.frame(dataset)
@@ -25,7 +24,6 @@ find_duplicates <- function(dataset,column) {
 #' @importFrom magrittr `%>%`
 #'
 #' @return
-#' @export
 #'
 
 check_id_availability = function(check_df,check_col,compare_df,compare_col){
@@ -46,7 +44,6 @@ check_id_availability = function(check_df,check_col,compare_df,compare_col){
 #' @importFrom magrittr `%>%`
 #'
 #' @return
-#' @export
 #'
 
 check_date_within = function(check_df,check_date,compare_df,compare_date,check_arg){
@@ -79,7 +76,6 @@ check_date_within = function(check_df,check_date,compare_df,compare_date,check_a
 #' @param mapping_sheet the mapping sheet which have the source field and concept id mappings
 #' 
 #' @return 
-#' @export
 
 get_source_concept_id <- function(measure_field, mapping_sheet){
   concept_id = mapping_sheet %>% filter(source_field==measure_field) %>% pull(concept_id)%>% unique()
@@ -93,6 +89,7 @@ get_source_concept_id <- function(measure_field, mapping_sheet){
 #' @param bound_df the data table which have all the measurement bounds
 #' @param check_df the dataframe 
 #' 
+#' @return 
 
 check_measure_bounds <- function(measurement,bound_df, check_df){
 

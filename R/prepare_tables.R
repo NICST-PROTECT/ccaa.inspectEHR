@@ -14,8 +14,8 @@ get_period_patients <- function(df, start_date, end_date){
   end_date = as.Date(end_date, format= '%d-%m-%Y')
   patients <- df[(df$observation_period_start_date >= start_date) & (df$observation_period_end_date<=end_date),] %>% select('person_id')
   patients$person_id
-  
 }
+
 
 #' Prepare Small Database Tables
 #'
@@ -164,34 +164,12 @@ prepare_tally <- function(ctn, schema,
 }
 
 
-#' Prepare NULL count information
-#'
-#' @param st a prepped table list from \code{\link{prepare_tables}}
-#'
-#' @return
-#' @export
-#'
-#' @importFrom purrr imap
-#' @importFrom dplyr bind_rows filter left_join
-#'
-#' @examples
-prepare_null_counts <- function(st) {
-
-  null_counts <- st %>%
-    imap(~ summarise_missing(.x, .y)) %>%
-    bind_rows() %>%
-    filter(!grepl(x = column, pattern = "source"))
-
-  left_join(null_counts, core_null_tolerance,
-            by = c("table", "column"))
-
-}
-
-
 
 #' add concept names for a given table
 #' 
 #' @param df the data frame we need to rename concept ids to names
+#' @param connection database connection
+#' @param schema_name character vector of target schema
 
 get_concept_names <- function(df,connection,schema_name){
   

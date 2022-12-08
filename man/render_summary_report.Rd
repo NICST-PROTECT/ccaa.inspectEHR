@@ -4,7 +4,7 @@
 \alias{render_summary_report}
 \title{Render Summary Report}
 \usage{
-render_summary_report(output = NULL, params = "ask")
+render_summary_report(params = "ask")
 }
 \arguments{
 \item{output}{an output file path}

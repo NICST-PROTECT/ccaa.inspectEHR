@@ -17,7 +17,6 @@ LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.0
 Imports: 
-    shiny,
     purrr,
     dplyr,
     magrittr,
@@ -28,18 +27,12 @@ Imports:
     dbplyr,
     rlang,
     tidyselect,
-    gtable,
     tibble,
     DBI,
-    janitor,
-    patchwork,
-    gt,
-    markovchain,
     forcats,
     hms,
     lubridate
 Suggests: 
-    testthat,
     RPostgres,
     odbc,
     RSQLite

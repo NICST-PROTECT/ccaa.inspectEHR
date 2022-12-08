@@ -86,7 +86,6 @@ h4.date {
 library(knitr)
 library(ggplot2)
 library(dplyr)
-library(patchwork)
 library(readr)
 library(DBI)
 library(rmarkdown)

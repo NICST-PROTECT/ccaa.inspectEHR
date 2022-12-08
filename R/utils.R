@@ -131,7 +131,6 @@ setup_ctn <- function(params) {
 #' @param print_empty_vars Logical indicating if variables with all NAs should be printed
 #' @import knitr
 #' @import kableExtra
-#' @import tidyverse
 #' @return A neatly formatted full width kable.
 print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_vars=TRUE){
 

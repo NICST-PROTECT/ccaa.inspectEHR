@@ -101,29 +101,33 @@ knitr::opts_chunk$set(
 
 
 ```{r prepare-st}
+
 ctn <- setup_ctn(params)
 schema <- params$schema
 
 tolerance <- params$measurement_tolerance
 
-observation_period = tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
-observation_period <- observation_period%>% filter(person_id %in% get_period_patients(observation_period,params$start_date,params$end_date))
+observation_period = tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble() 
+observation_period = observation_period %>%
+  filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
 
-visit_detail = tbl(ctn, in_schema(schema, "visit_detail")) %>% as_tibble()%>% filter(person_id %in% get_period_patients(observation_period,params$start_date,params$end_date))
+visit_detail = tbl(ctn, in_schema(schema, "visit_detail")) %>% as_tibble() %>% filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
 
-measurements = tbl(ctn, in_schema(schema, "measurement")) %>% as_tibble()%>% filter(person_id %in% get_period_patients(observation_period,params$start_date,params$end_date))
+measurements = tbl(ctn, in_schema(schema, "measurement")) %>% as_tibble() %>% filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
 
 st <- prepare_tables(ctn, schema) %>%
     map(~
-          filter(.,person_id %in% get_period_patients(observation_period,params$start_date,params$end_date)))
+          filter(.,person_id %in% get_period_patients(observation_period, params$start_date, params$end_date)))
 
 overview <- prepare_overview(st)
 
-measure_bounds = read_csv(file = system.file("data", "measure_bounds.csv",package = 'ccaa.inspectEHR'))
+measure_bounds = read_csv(file = system.file("data", "measure_bounds.csv", package = 'ccaa.inspectEHR'))
 
-question_mapping = read_csv(file =system.file("data", "question_mappings.csv",package = 'ccaa.inspectEHR'))
+question_mapping = read_csv(file =system.file("data", "question_mappings.csv", package = 'ccaa.inspectEHR'))
 
-glossary = read_csv(file =system.file("data", "glossary.csv",package = 'ccaa.inspectEHR'))
+concepts = tbl(ctn, in_schema(schema, "concept")) %>% as_tibble()
+
+glossary = read_csv(file =system.file("data", "glossary.csv", package = 'ccaa.inspectEHR'))
 
 ```
 <br>
@@ -140,20 +144,11 @@ glossary = read_csv(file =system.file("data", "glossary.csv",package = 'ccaa.ins
 ## Glossary
 ```{r}
 glossary %>% print_large_kable() %>%
-  column_spec(1,width='25%') %>%
-  column_spec(2:ncol(glossary),width='75%')
+  column_spec(1, width='25%') %>%
+  column_spec(2:ncol(glossary), width='75%')
   
   
 
-```
-
-
-```{r create check dfs}
-add_new_check = function(qual_df,Total,check,status,fail_count,fail_percentage){
-  new_row = c(check,Total,status,paste(fail_count,paste('(',fail_percentage,'%)')))
-  qual_df[nrow(qual_df) + 1,] <- new_row
-  return(qual_df)
-}
 ```
 
 
@@ -172,7 +167,7 @@ zero_vals <- clinical_tbls %>%
 
 ```{r}
 data_qual_df = data.frame(matrix(ncol = 4, nrow = 0))
-colnames(data_qual_df) = c('Check','Number of entries','Status','If check fails : n(%)')
+colnames(data_qual_df) = c('Check', 'Number of entries', 'Status', 'If check fails : n(%)')
 ```
 
 ```{r ages}
@@ -182,59 +177,59 @@ if ("person" %in% zero_vals) {
   check_age <- (min(overview$age, na.rm = TRUE) >= 0) && (max(overview$age, na.rm = TRUE) <= 120)
   check = 'Age is between 0 and 120 in years'
   if (check_age){
-    data_qual_df = add_new_check(data_qual_df,nrow(overview),check,'Pass','0','0')
+    data_qual_df = add_new_check(data_qual_df, nrow(overview), check, 'Pass', '0', '0')
   }else{
     fail_count = overview %>% filter(age<0) %>% nrow()
     fail_percentage = format(round(fail_count/nrow(overview)*100,4), scientific = FALSE)
-    data_qual_df = add_new_check(data_qual_df,nrow(overview),check,'Fail',fail_count,fail_percentage)
+    data_qual_df = add_new_check(data_qual_df, nrow(overview), check, 'Fail', fail_count, fail_percentage)
   }
 }
 ```
 
 ```{r check duplicate person source values}
 
-duplicates = find_duplicates(st[["person"]],'person_source_value')
+duplicates = find_duplicates(st[["person"]], 'person_source_value')
 check = 'Person source value is not duplicated'
 if (nrow(duplicates)>0) {
     fail_count = nrow(duplicates)
-    fail_percentage =format(round(fail_count/nrow(st[["person"]])*100,4), scientific = FALSE)
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Fail',fail_count,fail_percentage)
+    fail_percentage =format(round(fail_count/nrow(st[["person"]])*100, 4), scientific = FALSE)
+    data_qual_df = add_new_check(data_qual_df, nrow(st[["person"]]), check, 'Fail', fail_count, fail_percentage)
   } else {
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Pass','0','0')
+    data_qual_df = add_new_check(data_qual_df, nrow(st[["person"]]), check, 'Pass', '0', '0')
   }
 
 ```
 
 ```{r check all person ids available in other tables}
 
-unavailable = check_id_availability(st[["person"]],'person_id',st[["visit_occurrence"]],'person_id')
+unavailable = check_id_availability(st[["person"]], 'person_id', st[["visit_occurrence"]], 'person_id')
 check = 'All person IDs have a visit occurrence recorded'
 if (nrow(unavailable)>0) {
     fail_count = nrow(unavailable)
-    fail_percentage = format(round(fail_count/nrow(st[["person"]])*100,4), scientific = FALSE)
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Fail',fail_count,fail_percentage)
+    fail_percentage = format(round(fail_count/nrow(st[["person"]])*100, 4), scientific = FALSE)
+    data_qual_df = add_new_check(data_qual_df, nrow(st[["person"]]), check, 'Fail', fail_count, fail_percentage)
   } else {
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Pass','0','0')
+    data_qual_df = add_new_check(data_qual_df, nrow(st[["person"]]), check, 'Pass', '0', '0')
   }
 
-unavailable = check_id_availability(st[["person"]],'person_id',observation_period,'person_id')
+unavailable = check_id_availability(st[["person"]], 'person_id', observation_period, 'person_id')
 check = 'All person IDs have an observation period recorded'
 if (nrow(unavailable)>0) {
     fail_count = nrow(unavailable)
-    fail_percentage = format(round(fail_count/nrow(st[["person"]])*100,4),scientific = F)
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Fail',fail_count,fail_percentage)
+    fail_percentage = format(round(fail_count/nrow(st[["person"]])*100, 4),scientific = F)
+    data_qual_df = add_new_check(data_qual_df, nrow(st[["person"]]), check, 'Fail', fail_count, fail_percentage)
   } else {
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Pass','0','0')
+    data_qual_df = add_new_check(data_qual_df, nrow(st[["person"]]), check, 'Pass', '0', '0')
   }
 
-unavailable = check_id_availability(st[["person"]],'person_id',visit_detail,'person_id')
+unavailable = check_id_availability(st[["person"]], 'person_id', visit_detail, 'person_id')
 check = 'All person IDs have an visit detail recorded'
 if (nrow(unavailable)>0) {
     fail_count = nrow(unavailable)
-    fail_percentage = format(round(fail_count/nrow(st[["person"]])*100,4),scientific = F)
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Fail',fail_count,fail_percentage)
+    fail_percentage = format(round(fail_count/nrow(st[["person"]])*100, 4),scientific = F)
+    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]), check, 'Fail', fail_count, fail_percentage)
   } else {
-    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]),check,'Pass','0','0')
+    data_qual_df = add_new_check(data_qual_df,nrow(st[["person"]]), check, 'Pass', '0', '0')
   }
 
 ```
@@ -243,7 +238,7 @@ if (nrow(unavailable)>0) {
 
 st[['person']]$date_year = as.Date(ISOdate(st[["person"]]$year_of_birth, 1, 1))
 
-ghost_birth_year_with_obs = check_date_within(st[["person"]],'year_of_birth',observation_period,'observation_period_start_date','>=')
+ghost_birth_year_with_obs = check_date_within(st[["person"]], 'year_of_birth', observation_period, 'observation_period_start_date', '>=')
 
 check = 'Year of birth is the same or earlier than the observation start date'
 if (nrow(ghost_birth_year_with_obs)>0) {

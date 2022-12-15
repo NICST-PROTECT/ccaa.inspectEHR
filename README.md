@@ -1,6 +1,4 @@
 
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-
 # ccaa.inspectEHR
 
 <!-- badges: start -->
@@ -47,8 +45,9 @@ render_summary_report(
     user = #####,
     password = #####,
     local_hospital = "ccaa",
-    start_date = '01-01-2020',
-    end_date = '31-10-2022'
+    start_date = '2020-01-01',
+    end_date = '2022-10-31',
+    custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
   )
 )
 
@@ -63,8 +62,8 @@ render_quality_report(
     user = ######,
     password = ######,
     local_hospital = "ccaa",
-    start_date = '01-01-2020',
-    end_date = '31-10-2022',
+    start_date = '2020-01-01',
+    end_date = '2022-10-31',
     measurement_tolerance = '0.01'
     
   )

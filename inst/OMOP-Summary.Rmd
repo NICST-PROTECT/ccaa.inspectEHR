@@ -90,6 +90,7 @@ library(readr)
 library(DBI)
 library(rmarkdown)
 library(stringr)
+library(tidyverse)
 
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -102,19 +103,6 @@ knitr::opts_chunk$set(
 
 
 ```{r prepare-st}
-
-# params = list(
-#     driver = "PostgreSQL",
-#     host = "localhost",
-#     port = 5432,
-#     dbname = "cca_omop",
-#     schema = "cca_omop",
-#     user = "postgres",
-#     password = "postgres",
-#     local_hospital = "ccaa",
-#     start_date = '01-01-2020',
-#     end_date = '31-10-2022'
-#   )
 
 # Connect to the database. 
 # Read core tables and prepare overview. 
@@ -230,6 +218,7 @@ if ("person" %in% zero_vals) {
   ethnic_plot <- plot_ethnicity(st[["person"]])%>% custom_theme(params$custom_colors)
 
   age_plot + sex_plot + ethnic_plot
+
 }
 ```
 
@@ -379,6 +368,7 @@ outcome_dist <- overview %>%
   labs(x = "Event time distribution", fill = "Event", y="Density") +
   theme(legend.position = "bottom")+
     scale_fill_manual(values = params$custom_colors)
+
 outcome_dist%>%custom_theme(params$custom_colors)
 
 ```

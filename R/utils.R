@@ -7,12 +7,11 @@
 #'
 #' @return
 #' @export
-match_concepts <- function(column, lookup){
-
+match_concepts <- function(column, lookup) {
   if (all(is.na(column))) {
     return(column)
   } else {
-    lookup$concept_name[match(column,  lookup$concept_id)]
+    lookup$concept_name[match(column, lookup$concept_id)]
   }
 }
 
@@ -35,9 +34,8 @@ match_concepts <- function(column, lookup){
 #' @return
 #' @export
 mini_dict <- function(ctn, schema, concept_ids) {
-
   tbl(src = ctn, in_schema(schema = schema, table = "concept")) %>%
-    filter(concept_id %in% !! concept_ids) %>%
+    filter(concept_id %in% !!concept_ids) %>%
     select(.data$concept_id, .data$concept_name) %>%
     collect() %>%
     mutate(concept_id = as.integer(.data$concept_id))
@@ -57,15 +55,14 @@ mini_dict <- function(ctn, schema, concept_ids) {
 #' @importFrom dplyr if_else
 #'
 #' @return
-#' @export
 check_zero_tally <- function(x, column) {
   x %>%
     mutate(.is_zero = if_else({{ column }} == 0, "yes", "no")) %>%
     mutate(.is_zero = factor(
       x = .data$.is_zero,
       levels = c("yes", "no"),
-      labels = c("yes", "no"))
-    )
+      labels = c("yes", "no")
+    ))
 }
 
 quick_lead <- function(x) {
@@ -109,7 +106,8 @@ setup_ctn <- function(params) {
       drv = this_drv(),
       driver = "SQL Server",
       server = params$host,
-      database = params$dbname)
+      database = params$dbname
+    )
   } else {
     ctn <- DBI::dbConnect(
       drv = this_drv(),
@@ -117,7 +115,8 @@ setup_ctn <- function(params) {
       port = params$port,
       user = params$user,
       password = params$password,
-      dbname = params$dbname)
+      dbname = params$dbname
+    )
   }
 
   return(ctn)
@@ -132,28 +131,29 @@ setup_ctn <- function(params) {
 #' @import knitr
 #' @import kableExtra
 #' @return A neatly formatted full width kable.
-print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_vars=TRUE){
-
-  if(print_empty_vars == FALSE){
+print_large_kable <- function(table, caption = "", max_rows = 100, print_empty_vars = TRUE) {
+  if (print_empty_vars == FALSE) {
     table <- table %>%
-      select_if(~!(all(is.na(.))))
+      select_if(~ !(all(is.na(.))))
   }
-  if(nrow(table) > 0){
+  if (nrow(table) > 0) {
     n_rows <- nrow(table)
     options(knitr.kable.NA = "\\-")
     max_rows <- ifelse(max_rows < n_rows, max_rows, n_rows)
-    
+
     table %>%
       head(max_rows) %>%
       # formatting for kable
       mutate_if(is.character, ~ str_replace_all(.x, "\\n", "<br>")) %>%
       mutate_if(is.character, ~ str_replace_all(.x, "\\^", "\\\\^")) %>%
-      kable(format.args = list(big.mark = ","),
-            caption = paste0(caption, " Printed ", max_rows, " out of ", n_rows),
-            digits = 2, escape = FALSE, format = "html", align = "l") %>%
+      kable(
+        format.args = list(big.mark = ","),
+        caption = paste0(caption, " Printed ", max_rows, " out of ", n_rows),
+        digits = 2, escape = FALSE, format = "html", align = "l"
+      ) %>%
       kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = TRUE)
-  } else{
-    cat('\n\n<!-- -->\n\n')
+  } else {
+    cat("\n\n<!-- -->\n\n")
   }
 }
 
@@ -161,16 +161,18 @@ print_large_kable <- function(table, caption =  "", max_rows = 100, print_empty_
 #' @param graph A ggplot object to be formatted
 #' @import ggplot2
 #' @noRd
-custom_theme <- function(graph,colour_list){
-  formatted_graph <- graph + 
+custom_theme <- function(graph, colour_list) {
+  formatted_graph <- graph +
     theme_classic() +
-    theme(axis.text.x = element_text(color = "azure4", size = 8),
-          axis.text.y = element_text(color = "azure4"),
-          axis.title.x = element_text(color = "azure4", size = 10),
-          axis.title.y = element_text(color = "azure4", size = 10),
-          axis.line = element_line(color = "azure4"),
-          plot.title = element_text(color = "azure4", hjust = 0.5),
-          legend.title = element_blank(),
-          legend.text = element_text(face = "italic", color = colour_list))
+    theme(
+      axis.text.x = element_text(color = "azure4", size = 8),
+      axis.text.y = element_text(color = "azure4"),
+      axis.title.x = element_text(color = "azure4", size = 10),
+      axis.title.y = element_text(color = "azure4", size = 10),
+      axis.line = element_line(color = "azure4"),
+      plot.title = element_text(color = "azure4", hjust = 0.5),
+      legend.title = element_blank(),
+      legend.text = element_text(face = "italic", color = colour_list)
+    )
   formatted_graph
 }

@@ -165,7 +165,7 @@ plot_visit_detail_profile <- function(x, start_date, end_date, custom_colors) {
     scale_color_manual(values = custom_colors)
 }
 
-#' DECOVID Plot Theme
+#' Plot Theme
 #'
 #' @param ... arguments to pass to \code{theme}
 #'

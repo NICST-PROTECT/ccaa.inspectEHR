@@ -31,7 +31,8 @@ Imports:
     DBI,
     forcats,
     hms,
-    lubridate
+    lubridate,
+    patchwork
 Suggests: 
     RPostgres,
     odbc,

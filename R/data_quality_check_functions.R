@@ -80,29 +80,32 @@ check_date_within <- function(check_df, check_date, compare_df, compare_date, ch
 
 get_source_concept_id <- function(measure_field, mapping_sheet) {
   concept_id <- mapping_sheet %>%
-    filter(source_field == measure_field) %>%
-    pull(concept_id) %>%
+    filter(Variable == measure_field) %>%
+    pull(`Concept ID`) %>%
     unique()
   return(concept_id)
 }
 
 #' This function will check whether the given measurement is within the acceptable rate
 #'
+#' @param measure measure name
 #' @param measurement the measurement variable that need to check
 #' @param bound_df the data table which have all the measurement bounds
-#' @param check_df the dataframe
 #'
 #' @return
 
-check_measure_bounds <- function(measurement, bound_df, check_df) {
+check_measure_bounds <- function(measure, measurement, bound_df) {
   lower_bound <- bound_df %>%
-    filter(Variable == measurement) %>%
+    filter(Variable == measure) %>%
     pull(`Lower bound`)
   upper_bound <- bound_df %>%
-    filter(Variable == measurement) %>%
+    filter(Variable == measure) %>%
     pull(`Upper bound`)
+  concept_id <- bound_df %>%
+    filter(Variable == measure) %>%
+    pull(`Concept ID`)
 
-  abnormal_df <- check_df %>% filter(value_as_number < lower_bound | value_as_number > upper_bound)
+  abnormal_df <- measurement %>% filter((value_as_number < lower_bound | value_as_number > upper_bound) & (measurement_concept_id == concept_id))
   return(abnormal_df)
 }
 

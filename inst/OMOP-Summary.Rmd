@@ -285,11 +285,7 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
   scale_colour_manual(values = params$custom_colors, drop = FALSE) +
   theme_classic() +
   labs(y = "Count", x = "Type") +
-  theme(
-    legend.position = "none",
-    plot.title.position = "plot",
-    axis.title.y = element_blank()
-  ) +
+  theme_d() +
   coord_flip() +
   ggtitle("Admission Source")
 ```
@@ -317,11 +313,7 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
   scale_colour_manual(values = params$custom_colors, drop = FALSE) +
   theme_classic() +
   labs(y = "Count", x = "Type") +
-  theme(
-    legend.position = "none",
-    plot.title.position = "plot",
-    axis.title.y = element_blank()
-  ) +
+  theme_d() +
   coord_flip() +
   ggtitle("Discharge To")
 ```

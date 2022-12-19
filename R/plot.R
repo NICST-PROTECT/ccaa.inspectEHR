@@ -185,6 +185,8 @@ theme_d <- function(...) {
       strip.background = element_blank(),
       plot.background = element_blank(),
       axis.line = element_blank(),
-      panel.grid = element_blank()
+      panel.grid = element_blank(),
+      legend.position = "none",
+      axis.title.y = element_blank()
     )
 }

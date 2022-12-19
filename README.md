@@ -35,8 +35,8 @@ The report can be run by running the following code.
 library(ccaa.inspectEHR)
 
 render_summary_report(
-  output = "Summary_report.html",
   params = list(
+    output = "Summary_report.html",
     driver = "PostgreSQL",
     host = "localhost",
     port = 5432,
@@ -52,8 +52,8 @@ render_summary_report(
 )
 
 render_quality_report(
-  output = "Data_Quality_report.html",
   params = list(
+    output = "Data_Quality_report.html",
     driver = "PostgreSQL",
     host = "localhost",
     port = 5432,

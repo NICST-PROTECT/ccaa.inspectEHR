@@ -127,10 +127,6 @@ overview <- prepare_overview(st)
 
 measure_bounds <- read_csv(file = system.file("data", "measure_bounds.csv", package = "ccaa.inspectEHR"))
 
-question_mapping <- read_csv(file = system.file("data", "question_mappings.csv", package = "ccaa.inspectEHR"))
-
-concepts <- tbl(ctn, in_schema(schema, "concept")) %>% as_tibble()
-
 glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.inspectEHR"))
 ```
 <br>
@@ -725,9 +721,9 @@ colnames(data_qual_measure) <- c("Check", "Number of entries", "Status", "Out of
 
 ```{r heart rate}
 
-heart_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("heart_rate", question_mapping))
+heart_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("heart_rate", measure_bounds))
 
-abnormal_heart <- check_measure_bounds("heart_rate", measure_bounds, heart_rate)
+abnormal_heart <- check_measure_bounds("heart_rate", measurements, measure_bounds)
 
 check <- glue("Heart rate is within 0-450 bpm level")
 

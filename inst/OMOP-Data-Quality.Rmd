@@ -743,9 +743,9 @@ if (nrow(abnormal_heart) > 0) {
 
 ```{r temperature}
 
-temperature <- measurements %>% filter(measurement_concept_id == get_source_concept_id("temperature", question_mapping))
+temperature <- measurements %>% filter(measurement_concept_id == get_source_concept_id("temperature", measure_bounds))
 
-abnormal_temp <- check_measure_bounds("temperature", measure_bounds, temperature)
+abnormal_temp <- check_measure_bounds("temperature", measurements, measure_bounds)
 
 check <- glue("Temperature is within 32-115 °F level")
 
@@ -764,9 +764,9 @@ if (nrow(abnormal_temp) > 0) {
 
 ```{r repository rate}
 
-respiratory_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("respiratory_rate", question_mapping))
+respiratory_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("respiratory_rate", measure_bounds))
 
-abnormal_rr <- check_measure_bounds("respiratory_rate", measure_bounds, respiratory_rate)
+abnormal_rr <- check_measure_bounds("respiratory_rate", measurements, measure_bounds)
 
 check <- glue("Repository rate is within 0-100 bpm level")
 
@@ -785,9 +785,9 @@ if (nrow(abnormal_rr) > 0) {
 
 ```{r diastolic blood pressure}
 
-diastolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("diastolic_blood_pressure", question_mapping))
+diastolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("diastolic_blood_pressure", measure_bounds))
 
-abnormal_dbp <- check_measure_bounds("diastolic_blood_pressure", measure_bounds, diastolic_blood_pressure)
+abnormal_dbp <- check_measure_bounds("diastolic_blood_pressure", measurements, measure_bounds)
 
 check <- glue("Diastolic blood pressure rate is within 0-200 mmHg level")
 
@@ -806,9 +806,9 @@ if (nrow(abnormal_dbp) > 0) {
 
 ```{r systolic blood pressure}
 
-systolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("systolic_blood_pressure", question_mapping))
+systolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("systolic_blood_pressure", measure_bounds))
 
-abnormal_sbp <- check_measure_bounds("systolic_blood_pressure", measure_bounds, systolic_blood_pressure)
+abnormal_sbp <- check_measure_bounds("systolic_blood_pressure", measurements, measure_bounds)
 
 check <- glue("Systolic blood pressure is within 0-400 mmHg level")
 

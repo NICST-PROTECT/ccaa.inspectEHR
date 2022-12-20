@@ -1,0 +1,6 @@
+Variable,Concept ID,Lower bound,Upper bound
+heart_rate,4239408,0,450
+temperature,36716470,32,115
+respiratory_rate,4313591,0,100
+diastolic_blood_pressure,4154790,0,200
+systolic_blood_pressure,4152194,0,400

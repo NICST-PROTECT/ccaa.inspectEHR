@@ -8,7 +8,6 @@
 #'   element_blank
 #'
 #' @return
-#' @export
 #'
 #' @examples
 plot_age <- function(x) {
@@ -21,11 +20,12 @@ plot_age <- function(x) {
     geom_segment(aes(
       x = 0,
       xend = n,
-      yend = age)) +
+      yend = age
+    )) +
     theme_d() +
-    labs(y = "count") +
+    labs(y = "Age", x = "Count") +
     theme(axis.title.y = element_blank()) +
-    ggtitle("Age Distribution")
+    ggtitle("Age distribution")
 }
 
 #' Plot Sex
@@ -34,7 +34,6 @@ plot_age <- function(x) {
 #' @param x
 #'
 #' @return
-#' @export
 #'
 #' @examples
 plot_sex <- function(x) {
@@ -46,9 +45,10 @@ plot_sex <- function(x) {
     geom_segment(aes(
       x = 0,
       xend = n,
-      yend = gender_concept_id)) +
-    labs(y = "count", x = "categories") +
-    theme_d()+
+      yend = gender_concept_id
+    )) +
+    labs(x = "Count", y = "Category") +
+    theme_d() +
     theme(axis.title.y = element_blank()) +
     ggtitle("Sex distribution")
 }
@@ -64,7 +64,6 @@ plot_sex <- function(x) {
 #' @importFrom ggplot2 ggplot aes geom_point geom_segment labs theme ggtitle
 #'
 #' @return
-#' @export
 #'
 #' @examples
 plot_ethnicity <- function(x) {
@@ -73,15 +72,21 @@ plot_ethnicity <- function(x) {
       race_concept_id = gsub(
         " - England and Wales ethnic category 2011 census",
         "",
-        race_concept_id)) %>%
+        race_concept_id
+      )
+    ) %>%
     mutate(
       race_concept_id = if_else(
         nchar(race_concept_id) >= 30,
         paste0(stringr::str_sub(race_concept_id, 1, 29), "..."),
-        race_concept_id)) %>%
+        race_concept_id
+      )
+    ) %>%
     mutate(
       race_concept_id = forcats::fct_rev(
-        forcats::fct_infreq(race_concept_id))) %>%
+        forcats::fct_infreq(race_concept_id)
+      )
+    ) %>%
     group_by(race_concept_id) %>%
     tally() %>%
     ggplot(aes(y = race_concept_id)) +
@@ -89,90 +94,84 @@ plot_ethnicity <- function(x) {
     geom_segment(aes(
       x = 0,
       xend = n,
-      yend = race_concept_id)) +
-    labs(y = "count", x = "categories") +
+      yend = race_concept_id
+    )) +
+    labs(x = "Count", y = "Category") +
     theme_d() +
     theme(axis.title.y = element_blank()) +
-    ggtitle("Ethnicity Distribution")
-
+    ggtitle("Ethnicity distribution")
 }
 
 #' Plot Visit Profile
 #'
 #' @param x
+#' @param start_date starting date for x axis
+#' @param end_date ending dare for x axis
 #'
 #' @importFrom dplyr mutate_at vars group_by tally
 #' @importFrom ggplot2 ggplot aes geom_path theme labs
 #'
 #' @return
-#' @export
 #'
 #' @examples
-plot_visit_profile <- function(x) {
+plot_visit_profile <- function(x, start_date, end_date, custom_colors) {
   x %>%
-    mutate_at(vars(visit_start_datetime), ~ as.Date(.)) %>%
-    group_by(visit_start_datetime, visit_concept_id) %>%
+    mutate_at(vars(visit_start_date), ~ as.Date(.)) %>%
+    # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
+    filter((visit_start_date >= as.Date(start_date, format = "%Y-%m-%d")) & (visit_start_date <= as.Date(end_date, format = "%Y-%m-%d"))) %>%
+    group_by(visit_start_date, visit_concept_id) %>%
     tally() %>%
-    ggplot(aes(x = visit_start_datetime, y = n,
-               group = visit_concept_id, colour = visit_concept_id)) +
+    ggplot(aes(
+      x = visit_start_date, y = n,
+      group = visit_concept_id, colour = visit_concept_id
+    )) +
     geom_path() +
     theme_d() +
-    labs(y = "patient attendances", x = "arrival date", colour = "visit type") +
+    labs(y = "Daily number of patient attendances", x = "Arrival date", colour = "Visit type") +
     theme(legend.position = "bottom") +
-    ggtitle("Admission profile by type of admission")
+    ggtitle("Admission profile by type of admission") +
+    scale_color_manual(values = custom_colors)
 }
 
-
-
-#' Plot Transition Matrix
+#' Plot Visit detail Profile
 #'
-#' @param tm a transition matrix from \code{\link{transition_matrix}}
-#' @param possible_states a character vector of the possible states to be used
-#'   in the markov chain fitting process
+#' @param x
+#' @param start_date starting date for x axis
+#' @param end_date ending dare for x axis
 #'
-#' @importFrom tibble as_tibble add_column
-#' @importFrom tidyr pivot_longer
-#' @importFrom dplyr mutate across
-#' @importFrom ggplot2 ggplot aes geom_tile geom_text theme scale_fill_viridis_c
-#'   ggtitle
-#' @importFrom magrittr %>%
+#' @importFrom dplyr mutate_at vars group_by tally
+#' @importFrom ggplot2 ggplot aes geom_path theme labs
 #'
 #' @return
-#' @export
 #'
 #' @examples
-plot_tm <- function(tm, possible_states) {
-
-  tm_fit <- as_tibble(tm$estimate@transitionMatrix) %>%
-    add_column(
-      source = rownames(tm$estimate@transitionMatrix), .before = TRUE) %>%
-    pivot_longer(-contains("source"),
-                 names_to = "destination",
-                 values_to = "value") %>%
-    mutate(across(c("source", "destination"), factor, levels = possible_states))
-
-  tm_fit %>%
-    ggplot(aes(y = source, x = destination)) +
-    geom_tile(aes(fill = value)) +
-    geom_text(aes(label = round(value, 2)), colour = "white") +
+plot_visit_detail_profile <- function(x, start_date, end_date, custom_colors) {
+  x %>%
+    mutate_at(vars(visit_detail_start_datetime), ~ as.Date(.)) %>%
+    mutate_at(vars(visit_detail_concept_id), ~ as.character(.)) %>%
+    # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
+    filter((visit_detail_start_date > as.Date(start_date, format = "%Y-%m-%d")) & (visit_detail_start_date <= as.Date(end_date, format = "%Y-%m-%d"))) %>%
+    group_by(visit_detail_start_date, visit_detail_concept_id) %>%
+    tally() %>%
+    ggplot(aes(
+      x = visit_detail_start_date, y = n,
+      group = visit_detail_concept_id, colour = visit_detail_concept_id
+    )) +
+    geom_path() +
     theme_d() +
-    theme(
-      plot.title.position = "plot",
-      panel.grid.major = element_blank(),
-      legend.position = "none",
-      axis.text.x = element_text(angle = 35, hjust = 1)) +
-    scale_fill_viridis_c() +
-    ggtitle("Transition Matrix for Internal Hospital Movements")
+    labs(y = "Daily number of patients in visit details", x = "Date", colour = "Visit type") +
+    theme(legend.position = "bottom") +
+    ggtitle("Daily observation profile by type of observation") +
+    scale_color_manual(values = custom_colors)
 }
 
-#' DECOVID Plot Theme
+#' Plot Theme
 #'
 #' @param ... arguments to pass to \code{theme}
 #'
 #' @importFrom ggplot2 %+replace% theme theme_bw element_blank
 #'
 #' @return
-#' @export
 #'
 #' @examples
 theme_d <- function(...) {
@@ -186,8 +185,8 @@ theme_d <- function(...) {
       strip.background = element_blank(),
       plot.background = element_blank(),
       axis.line = element_blank(),
-      panel.grid = element_blank())
+      panel.grid = element_blank(),
+      legend.position = "none",
+      axis.title.y = element_blank()
+    )
 }
-
-
-

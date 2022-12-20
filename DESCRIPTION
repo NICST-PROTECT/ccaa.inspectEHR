@@ -1,20 +1,22 @@
-Package: d.inspectEHR
-Title: Data Quality Evaluation for DECOVID
+Package: ccaa.inspectEHR
+Title: Data Quality Evaluation for CCAA
 Version: 0.1.2
 Authors@R: 
-    person(given = "Edward",
-           family = "Palmer",
+    person(given = "Aasiyah",
+           family = "Rashan",
            role = c("aut", "cre"),
-           email = "edward.palmer@ucl.ac.uk",
-           comment = c(ORCID = "0000-0002-8024-4616"))
+           email = "aasiyah@nicslk.com")
+    person(given = "Himasha",
+           family = "Muvindi",
+           role = c("aut", "cre"),
+           email = "himasha@nicslk.com")
 Description: Evaluates Quality
 License: CC BY 4.0
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.0
 Imports: 
-    shiny,
     purrr,
     dplyr,
     magrittr,
@@ -25,18 +27,15 @@ Imports:
     dbplyr,
     rlang,
     tidyselect,
-    gtable,
     tibble,
     DBI,
-    janitor,
-    patchwork,
-    gt,
-    markovchain,
     forcats,
     hms,
-    lubridate
+    lubridate,
+    patchwork
 Suggests: 
-    testthat,
     RPostgres,
     odbc,
     RSQLite
+Depends: 
+    R (>= 2.10)

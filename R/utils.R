@@ -165,7 +165,7 @@ custom_theme <- function(graph, colour_list) {
   formatted_graph <- graph +
     theme_classic() +
     theme(
-      axis.text.x = element_text(color = "azure4", size = 8),
+      axis.text.x = element_text(color = "azure4", size = 8, angle = 30, hjust = 1),
       axis.text.y = element_text(color = "azure4"),
       axis.title.x = element_text(color = "azure4", size = 10),
       axis.title.y = element_text(color = "azure4", size = 10),
@@ -176,3 +176,4 @@ custom_theme <- function(graph, colour_list) {
     )
   formatted_graph
 }
+

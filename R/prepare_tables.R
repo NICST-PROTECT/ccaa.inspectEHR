@@ -1,5 +1,6 @@
 #' Get patients for a selected time period and return as a list
-#' Beased on this list all the tables will be filtered
+#' Based on this list all the tables will be filtered
+#' to get the period patients, the observation period table is used
 #'
 #' @param df the dataframe which patients selects from
 #' @param start_date begining of the period
@@ -8,7 +9,8 @@
 #' @return
 #'
 
-get_period_patients <- function(df, start_date, end_date) {
+get_period_patients <- function(ctn, schema, start_date, end_date) {
+  df <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
   start_date <- as.Date(start_date, format = "%Y-%m-%d")
   end_date <- as.Date(end_date, format = "%Y-%m-%d")
   patients <- df[(df$observation_period_start_date >= start_date) & (df$observation_period_end_date <= end_date), ] %>% select("person_id")

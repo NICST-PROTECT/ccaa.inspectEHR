@@ -107,21 +107,21 @@ schema <- params$schema
 
 tolerance <- params$measurement_tolerance
 
-observation_period <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
+observation_period <- tbl(ctn, in_schema(schema,schema, "observation_period")) %>% as_tibble()
 observation_period <- observation_period %>%
-  filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
+  filter(person_id %in% get_period_patients(ctn,  params$start_date, params$end_date))
 
 visit_detail <- tbl(ctn, in_schema(schema, "visit_detail")) %>%
   as_tibble() %>%
-  filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
+  filter(person_id %in% get_period_patients(schema,schema, params$start_date, params$end_date))
 
 measurements <- tbl(ctn, in_schema(schema, "measurement")) %>%
   as_tibble() %>%
-  filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
+  filter(person_id %in% get_period_patients(schema,schema, params$start_date, params$end_date))
 
 st <- prepare_tables(ctn, schema) %>%
   map(~
-    filter(., person_id %in% get_period_patients(observation_period, params$start_date, params$end_date)))
+    filter(., person_id %in% get_period_patients(schema,schema, params$start_date, params$end_date)))
 
 overview <- prepare_overview(st)
 

@@ -139,17 +139,30 @@ measurement_observation_summary <- read_file(system.file("measurement_observatio
 )) %>%
   str_replace_all(":OMOP_SCHEMA", schema) %>%
   dbGetQuery(ctn, .) %>%
-  as_tibble()
+  as_tibble() %>%
+  mutate(concept_id = as.character(concept_id),
+         unit_concept_id = as.character(unit_concept_id),
+         count = as.numeric(count),
+         min = as.numeric(min),
+         mean = as.numeric(mean),
+         median = as.numeric(median)
+         )
 
 condition_procedure_summary <- read_file(system.file("condition_procedure_summary.sql", package = "ccaa.inspectEHR")) %>%
   str_replace_all(":OMOP_SCHEMA", schema) %>%
   dbGetQuery(ctn, .) %>%
-  as_tibble()
+  as_tibble() %>%
+  mutate(concept_id = as.character(concept_id),
+         count = as.numeric(count)
+         )
 
 drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspectEHR")) %>%
   str_replace_all(":OMOP_SCHEMA", schema) %>%
   dbGetQuery(ctn, .) %>%
-  as_tibble()
+  as_tibble() %>%
+  mutate(concept_id = as.character(concept_id),
+         count = as.numeric(count)
+         )
 
 glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.inspectEHR"))
 ```
@@ -395,7 +408,7 @@ The 50 most common concepts are displayed.
 ```{r}
 measurement_observation_summary %>%
   filter(table_name == "measurement") %>%
-  select(-c(table_name, most_frequent_string)) %>%
+  select(-c(table_name, most_frequent_string,most_frequent_category)) %>%
   print_large_kable(max_rows = 50) %>%
   scroll_box(
     width = "100%", height = "500px",
@@ -411,7 +424,7 @@ The 50 most common concepts are displayed.
 ```{r}
 measurement_observation_summary %>%
   filter(table_name == "observation") %>%
-  select(-c(table_name)) %>%
+  select(-c(table_name,most_frequent_category)) %>%
   print_large_kable(max_rows = 50) %>%
   scroll_box(
     width = "100%", height = "500px",

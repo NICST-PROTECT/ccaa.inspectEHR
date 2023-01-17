@@ -107,21 +107,23 @@ schema <- params$schema
 
 tolerance <- params$measurement_tolerance
 
-observation_period <- tbl(ctn, in_schema(schema,schema, "observation_period")) %>% as_tibble()
+period_person_ids <- get_period_patients(ctn, schema, params$start_date, params$end_date)
+
+observation_period <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
 observation_period <- observation_period %>%
-  filter(person_id %in% get_period_patients(ctn,  params$start_date, params$end_date))
+  filter(person_id %in% period_person_ids)
 
 visit_detail <- tbl(ctn, in_schema(schema, "visit_detail")) %>%
   as_tibble() %>%
-  filter(person_id %in% get_period_patients(schema,schema, params$start_date, params$end_date))
+  filter(person_id %in% period_person_ids)
 
 measurements <- tbl(ctn, in_schema(schema, "measurement")) %>%
   as_tibble() %>%
-  filter(person_id %in% get_period_patients(schema,schema, params$start_date, params$end_date))
+  filter(person_id %in% period_person_ids)
 
 st <- prepare_tables(ctn, schema) %>%
   map(~
-    filter(., person_id %in% get_period_patients(schema,schema, params$start_date, params$end_date)))
+    filter(., person_id %in% period_person_ids))
 
 overview <- prepare_overview(st)
 
@@ -150,7 +152,7 @@ glossary %>%
 
 
 ```{r}
-clinical_tbls <- prepare_tally(ctn, schema)
+clinical_tbls <- prepare_tally(ctn, schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
 
 zero_vals <- clinical_tbls %>%
   filter(n == 0) %>%

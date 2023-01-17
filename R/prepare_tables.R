@@ -163,20 +163,29 @@ prepare_tally <- function(ctn, schema,
                             "condition_occurrence",
                             "measurement",
                             "observation"
-                          )) {
+                          ), filter_person_ids, filter_care_sites) {
   clinical_tbls <- tibble(table = tbl_names)
 
   ttally <- clinical_tbls$table %>%
-    map_int(~ tbl(ctn, in_schema(schema, .)) %>%
-      tally() %>%
-      collect() %>%
-      pull() %>%
-      as.integer())
+    map_int(~ {
+      tbl_name <- .
+      table <- tbl(ctn, in_schema(schema, tbl_name))
+
+      if ("person_id" %in% colnames(table)) {
+        table <- table %>% filter(person_id %in% filter_person_ids)
+      } else if ("care_site_id" %in% colnames(table)) {
+        table <- table %>% filter(care_site_id %in% filter_care_sites)
+      }
+
+      tally(table) %>%
+        collect() %>%
+        pull() %>%
+        as.integer()
+    })
 
   clinical_tbls %>%
     mutate(n = ttally)
 }
-
 
 
 #' add concept names for a given table

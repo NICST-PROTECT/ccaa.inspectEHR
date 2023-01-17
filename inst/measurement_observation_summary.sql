@@ -12,6 +12,7 @@ MODE() within group (order by m.value_as_concept_id) most_frequent_category,
 null most_frequent_string, 
 'measurement' table_name
 from :OMOP_SCHEMA.measurement m
+INNER JOIN :OMOP_SCHEMA.observation_period op ON m.person_id = op.person_id AND op.observation_period_start_date >= 'date_start' AND op.observation_period_end_date <= 'date_end'
 group by m.measurement_concept_id, m.unit_concept_id 
 union 
 -- observation
@@ -27,6 +28,7 @@ MODE() within group (order by o.value_as_concept_id) most_frequent_category,
 MODE() within group (order by o.value_as_string) most_frequent_string,
 'observation' table_name
 from :OMOP_SCHEMA.observation o
+INNER JOIN :OMOP_SCHEMA.observation_period op ON o.person_id = op.person_id AND op.observation_period_start_date >= 'date_start' AND op.observation_period_end_date <= 'date_end'
 group by o.observation_concept_id, o.unit_concept_id )
 
 -- getting concept names

@@ -176,4 +176,3 @@ custom_theme <- function(graph, colour_list) {
     )
   formatted_graph
 }
-

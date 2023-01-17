@@ -110,59 +110,73 @@ knitr::opts_chunk$set(
 ctn <- setup_ctn(params)
 schema <- params$schema
 
+period_person_ids <- get_period_patients(ctn, schema, params$start_date, params$end_date)
+
+
 observation_period <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
-observation_period <- observation_period %>% filter(person_id %in% get_period_patients(ctn, schema, params$start_date, params$end_date))
+observation_period <- observation_period %>% filter(person_id %in% period_person_ids)
 
 visit_detail <- tbl(ctn, in_schema(schema, "visit_detail")) %>%
   as_tibble() %>%
-  filter(person_id %in% get_period_patients(ctn, schema, params$start_date, params$end_date)) %>%
+  filter(person_id %in% period_person_ids) %>%
   get_concept_names(ctn, schema)
 
 st <- prepare_tables(ctn, schema) %>%
   map(~
-    filter(., person_id %in% get_period_patients(ctn, schema, params$start_date, params$end_date)))
+    filter(., person_id %in% period_person_ids))
 
-care_site <- tbl(ctn, in_schema(schema, "care_site")) %>% as_tibble()
 
 overview <- prepare_overview(st)
 
+care_sites <- unique(st[["person"]]$care_site_id)
+
 # Getting counts of all the tables.
-table_counts <- prepare_tally(ctn, schema)
+table_counts <- prepare_tally(ctn, schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
 
 zero_vals <- table_counts %>%
   filter(n == 0) %>%
   select(table) %>%
   pull()
 
+
 measurement_observation_summary <- read_file(system.file("measurement_observation_summary.sql",
   package = "ccaa.inspectEHR"
 )) %>%
   str_replace_all(":OMOP_SCHEMA", schema) %>%
+  str_replace_all("date_start", params$start_date) %>%
+  str_replace_all("date_end", params$end_dat) %>%
   dbGetQuery(ctn, .) %>%
   as_tibble() %>%
-  mutate(concept_id = as.character(concept_id),
-         unit_concept_id = as.character(unit_concept_id),
-         count = as.numeric(count),
-         min = as.numeric(min),
-         mean = as.numeric(mean),
-         median = as.numeric(median)
-         )
+  mutate(
+    concept_id = as.character(concept_id),
+    unit_concept_id = as.character(unit_concept_id),
+    count = as.numeric(count),
+    min = as.numeric(min),
+    mean = as.numeric(mean),
+    median = as.numeric(median)
+  )
 
 condition_procedure_summary <- read_file(system.file("condition_procedure_summary.sql", package = "ccaa.inspectEHR")) %>%
   str_replace_all(":OMOP_SCHEMA", schema) %>%
+  str_replace_all("date_start", params$start_date) %>%
+  str_replace_all("date_end", params$end_dat) %>%
   dbGetQuery(ctn, .) %>%
   as_tibble() %>%
-  mutate(concept_id = as.character(concept_id),
-         count = as.numeric(count)
-         )
+  mutate(
+    concept_id = as.character(concept_id),
+    count = as.numeric(count)
+  )
 
 drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspectEHR")) %>%
   str_replace_all(":OMOP_SCHEMA", schema) %>%
+  str_replace_all("date_start", params$start_date) %>%
+  str_replace_all("date_end", params$end_dat) %>%
   dbGetQuery(ctn, .) %>%
   as_tibble() %>%
-  mutate(concept_id = as.character(concept_id),
-         count = as.numeric(count)
-         )
+  mutate(
+    concept_id = as.character(concept_id),
+    count = as.numeric(count)
+  )
 
 glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.inspectEHR"))
 ```
@@ -191,13 +205,13 @@ summary <- tibble(
 )
 
 summary <- bind_rows(summary, c(c(variable = "Number of patients"),
-  value = nrow(st[["person"]])
+  value = filter(table_counts, table == "person") %>% pull(n)
 ))
 summary <- bind_rows(summary, c(c(variable = "Number of visit occurrences"),
-  value = nrow(st[["visit_occurrence"]])
+  value = filter(table_counts, table == "visit_occurrence") %>% pull(n)
 ))
 summary <- bind_rows(summary, c(c(variable = "Number of care sites"),
-  value = nrow(care_site)
+  value = filter(table_counts, table == "care_site") %>% pull(n)
 ))
 summary <- bind_rows(summary, c(c(variable = "Number of males"),
   value = nrow(st[["person"]] %>% filter(gender_concept_id == "MALE"))
@@ -408,7 +422,8 @@ The 50 most common concepts are displayed.
 ```{r}
 measurement_observation_summary %>%
   filter(table_name == "measurement") %>%
-  select(-c(table_name, most_frequent_string,most_frequent_category)) %>%
+  select(-c(table_name, most_frequent_string, most_frequent_category)) %>%
+  rename(most_frequent_category = most_frequent_category_name) %>%
   print_large_kable(max_rows = 50) %>%
   scroll_box(
     width = "100%", height = "500px",
@@ -424,7 +439,8 @@ The 50 most common concepts are displayed.
 ```{r}
 measurement_observation_summary %>%
   filter(table_name == "observation") %>%
-  select(-c(table_name,most_frequent_category)) %>%
+  select(-c(table_name, most_frequent_category)) %>%
+  rename(most_frequent_category = most_frequent_category_name) %>%
   print_large_kable(max_rows = 50) %>%
   scroll_box(
     width = "100%", height = "500px",

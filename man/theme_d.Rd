@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot.R
 \name{theme_d}
 \alias{theme_d}
-\title{DECOVID Plot Theme}
+\title{Plot Theme}
 \usage{
 theme_d(...)
 }
@@ -13,5 +13,5 @@ theme_d(...)
 
 }
 \description{
-DECOVID Plot Theme
+Plot Theme
 }

@@ -1,5 +1,5 @@
 ---
-title: "CCAA Repository Summary Report"
+title: "Summary Report"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document:
@@ -183,7 +183,7 @@ glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.
 <br></br>
 <br></br>
 
-## OMOP Structure on CCAA
+## OMOP Structure at `params$local_hospital`
 ![](./OMOP structure.jpg){width=100% height=25%}\
 
 <br>

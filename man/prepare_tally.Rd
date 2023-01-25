@@ -9,7 +9,9 @@ prepare_tally(
   schema,
   tbl_names = c("person", "care_site", "death", "visit_occurrence",
     "procedure_occurrence", "drug_exposure", "condition_occurrence", "measurement",
-    "observation")
+    "observation"),
+  filter_person_ids,
+  filter_care_sites
 )
 }
 \arguments{

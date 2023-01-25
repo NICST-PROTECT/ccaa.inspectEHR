@@ -51,10 +51,10 @@ prepare_tables <- function(connection, schema_name) {
   # Translating the concept IDs to names.
   all_concepts <- st %>%
     map(~ select(., contains("concept_id")) %>%
-      pivot_longer(everything(),
-        names_to = "column_name",
-        values_to = "concept_id"
-      )) %>%
+          pivot_longer(everything(),
+                       names_to = "column_name",
+                       values_to = "concept_id"
+          )) %>%
     bind_rows() %>%
     distinct(.data$concept_id, .keep_all = TRUE)
 
@@ -62,31 +62,31 @@ prepare_tables <- function(connection, schema_name) {
 
   st %>%
     map(~
-      mutate(
-        .,
-        across(where(is.integer64), as.integer)
-      )) %>%
+          mutate(
+            .,
+            across(where(is.integer64), as.integer)
+          )) %>%
     map(~
-      mutate(
-        .,
-        across(
-          c(
-            contains("concept_id"),
-            -contains("source"),
-            contains("admitted_from_concept_id")
-          ),
-          match_concepts,
-          lookup = replace_names
-        )
-      )) %>%
+          mutate(
+            .,
+            across(
+              c(
+                contains("concept_id"),
+                -contains("source"),
+                contains("[admitted_from_concept_id][admitting_source_concept_id]")
+              ),
+              match_concepts,
+              lookup = replace_names
+            )
+          )) %>%
     map(~
-      mutate(
-        .,
-        across(
-          c(contains("date"), -contains("datetime")),
-          as.Date
-        )
-      ))
+          mutate(
+            .,
+            across(
+              c(contains("date"), -contains("datetime")),
+              as.Date
+            )
+          ))
 }
 
 #' Prepare Overview Table
@@ -95,6 +95,7 @@ prepare_tables <- function(connection, schema_name) {
 #'
 #' @importFrom magrittr `%>%`
 #' @importFrom dplyr select left_join
+#' @importFrom tidyselect any_of
 #' @importFrom rlang .data
 #' @importFrom lubridate interval years
 #'
@@ -117,14 +118,13 @@ prepare_overview <- function(x) {
     ) %>%
     left_join(
       x[["visit_occurrence"]] %>%
-        select(
-          .data$person_id,
-          .data$visit_occurrence_id,
-          .data$visit_start_datetime,
-          .data$visit_end_datetime,
-          .data$visit_concept_id,
-          .data$admitted_from_concept_id,
-          .data$discharged_to_concept_id
+        select(person_id,
+               visit_occurrence_id,
+               visit_start_datetime,
+               visit_end_datetime,
+               visit_concept_id,
+               any_of(c("admitted_from_concept_id", "admitting_source_concept_id")),
+               any_of(c("discharged_to_concept_id", "discharge_to_concept_id"))
         ),
       by = "person_id"
     ) %>%
@@ -199,8 +199,8 @@ get_concept_names <- function(df, connection, schema_name) {
   all_concepts <- df %>%
     select(., contains("concept_id")) %>%
     pivot_longer(everything(),
-      names_to = "column_name",
-      values_to = "concept_id"
+                 names_to = "column_name",
+                 values_to = "concept_id"
     ) %>%
     distinct(.data$concept_id, .keep_all = TRUE)
 
@@ -212,7 +212,7 @@ get_concept_names <- function(df, connection, schema_name) {
       c(
         contains("concept_id"),
         -contains("source"),
-        contains("admitted_from_concept_id")
+        contains("[admitted_from_concept_id][admitting_source_concept_id]")
       ),
       match_concepts,
       lookup = replace_names

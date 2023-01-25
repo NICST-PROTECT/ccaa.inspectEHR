@@ -112,7 +112,6 @@ schema <- params$schema
 
 period_person_ids <- get_period_patients(ctn, schema, params$start_date, params$end_date)
 
-
 observation_period <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
 observation_period <- observation_period %>% filter(person_id %in% period_person_ids)
 
@@ -288,19 +287,22 @@ if (!("visit_occurrence" %in% zero_vals)) {
 ```
 
 ```{r visit-profile}
-plot_visit_profile(st[["visit_occurrence"]], params$start_date, params$end_date, params$custom_colors) %>% custom_theme(params$custom_colors)
+plot_visit_profile(st[["visit_occurrence"]], params$start_date, params$end_date,
+                   params$custom_colors) %>% custom_theme(params$custom_colors)
 ```
 
 ```{r admission-from1}
 st[["visit_occurrence"]] %>%
-  group_by(admitted_from_concept_id) %>%
+  group_by(across(contains("[admitted_from_concept_id][admitting_source_concept_id]"))) %>%
   tally() %>%
   print_large_kable()
 ```
 
 ```{r admission-from2}
 admission_from_plot <- st[["visit_occurrence"]] %>%
-  mutate(admitted_from_concept_id = forcats::fct_infreq(as.character(admitted_from_concept_id))) %>%
+  rename(any_of(c(admitted_from_concept_id = "admitting_source_concept_id"))) %>% 
+  mutate(admitted_from_concept_id =
+           forcats::fct_infreq(as.character(admitted_from_concept_id))) %>%
   group_by(admitted_from_concept_id) %>%
   tally() %>%
   check_zero_tally(n) %>%
@@ -321,13 +323,14 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
 
 ```{r discharge-to1}
 st[["visit_occurrence"]] %>%
-  group_by(discharged_to_concept_id) %>%
+  group_by(across(contains("discharged_to_concept_id|discharge_to_concept_id"))) %>%
   tally() %>%
   print_large_kable()
 ```
 
 ```{r discharge-to2}
 discharge_to_plot <- st[["visit_occurrence"]] %>%
+  rename(any_of(c(discharged_to_concept_id = "discharge_to_concept_id"))) %>% 
   mutate(discharged_to_concept_id = forcats::fct_infreq(as.character(discharged_to_concept_id))) %>%
   group_by(discharged_to_concept_id) %>%
   tally() %>%
@@ -478,4 +481,3 @@ drug_summary %>%
 ```{r}
 DBI::dbDisconnect(ctn)
 ```
-

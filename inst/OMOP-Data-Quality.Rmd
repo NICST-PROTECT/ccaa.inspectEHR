@@ -101,11 +101,8 @@ knitr::opts_chunk$set(
 
 
 ```{r prepare-st}
-
 ctn <- setup_ctn(params)
 schema <- params$schema
-
-tolerance <- params$measurement_tolerance
 
 period_person_ids <- get_period_patients(ctn, schema, params$start_date, params$end_date)
 
@@ -638,7 +635,7 @@ if (nrow(end_visit_det_obs) > 0) {
   data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
 }
 
-observation_period$observation_period_end_date_midnight <- observation_period$observation_period_end_date + hours(23) + minutes(59) + seconds(59)
+observation_period$observation_period_end_date_midnight <- observation_period$observation_period_end_date 
 end_visit_det_dt_obs <- check_date_within(visit_detail, "visit_detail_end_datetime", observation_period, "observation_period_end_date_midnight", ">")
 
 check <- "Visit detail end date time is on or before the corresponding observation period end date"
@@ -668,7 +665,7 @@ if (nrow(end_visit_det_occ) > 0) {
 st[["visit_occurrence"]]$visit_end_date_midnight <- st[["visit_occurrence"]]$visit_end_date + hours(23) + minutes(59) + seconds(59)
 end_visit_det_dt_occ <- check_date_within(visit_detail, "visit_detail_end_datetime", st[["visit_occurrence"]], "visit_end_date_midnight", ">")
 
-check <- "Visit detail end date time is on or before the corresponding visit occurrence end date time"
+check <- "Visit detail end date time is on or before the corresponding visit occurrence end date"
 if (nrow(end_visit_det_dt_occ) > 0) {
   fail_count <- nrow(end_visit_det_dt_occ)
   fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
@@ -714,118 +711,36 @@ data_qual_visit_det %>%
 <br>
 
 ## Measurements
-The status of the pass/failure of the measurement checks undergo with `r {tolerance}`% tolerance. 
+The status of the pass/failure of the measurement checks undergo with `r {params$measurement_tolerance}`% tolerance. 
 ```{r}
 data_qual_measure <- data.frame(matrix(ncol = 4, nrow = 0))
 colnames(data_qual_measure) <- c("Check", "Number of entries", "Status", "Out of range : n(%)")
 ```
 
-
-```{r heart rate}
-
-heart_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("heart_rate", measure_bounds))
-
-abnormal_heart <- check_measure_bounds("heart_rate", measurements, measure_bounds)
-
-check <- glue("Heart rate is within 0-450 bpm level")
-
-if (nrow(abnormal_heart) > 0) {
-  fail_count <- nrow(abnormal_heart)
-  fail_percentage <- format(round(fail_count / nrow(heart_rate) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(heart_rate), check, "Fail", fail_count, fail_percentage)
+```{r measurement checks}
+for(i in 1:nrow(measure_bounds)) {
+  
+  measurement = measurements %>% filter(measurement_concept_id == get_source_concept_id(measure_bounds$Variable[i], measure_bounds))
+  abnormal_measure <- check_measure_bounds(measure_bounds$Variable[i], measurements, measure_bounds)
+  check <- glue(measure_bounds$Name[i]," is within ", measure_bounds$`Lower bound`[i],"-",measure_bounds$`Upper bound`[i]," ", measure_bounds$`measure unit`[i]," level")
+  
+  if (nrow(abnormal_measure) > 0) {
+    
+    fail_count <- nrow(abnormal_measure)
+    fail_percentage <- format(round(fail_count / nrow(measurement) * 100, 4), scientific = FALSE)
+    if (as.numeric(fail_percentage) > as.numeric(params$measurement_tolerance)) {
+      data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Fail", fail_count, fail_percentage)
+    } else {
+      data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Pass", fail_count, fail_percentage)
+    }
   } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(heart_rate), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(heart_rate), check, "Pass", "0", "0")
+    data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Pass", "0", "0")
 }
+  
+  
+} 
 ```
 
-
-```{r temperature}
-
-temperature <- measurements %>% filter(measurement_concept_id == get_source_concept_id("temperature", measure_bounds))
-
-abnormal_temp <- check_measure_bounds("temperature", measurements, measure_bounds)
-
-check <- glue("Temperature is within 32-115 °F level")
-
-if (nrow(abnormal_temp) > 0) {
-  fail_count <- nrow(abnormal_temp)
-  fail_percentage <- format(round(fail_count / nrow(temperature) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(temperature), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(temperature), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(temperature), check, "Pass", "0", "0")
-}
-```
-
-```{r repository rate}
-
-respiratory_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("respiratory_rate", measure_bounds))
-
-abnormal_rr <- check_measure_bounds("respiratory_rate", measurements, measure_bounds)
-
-check <- glue("Repository rate is within 0-100 bpm level")
-
-if (nrow(abnormal_rr) > 0) {
-  fail_count <- nrow(abnormal_rr)
-  fail_percentage <- format(round(fail_count / nrow(respiratory_rate) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(respiratory_rate), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(respiratory_rate), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(respiratory_rate), check, "Pass", "0", "0")
-}
-```
-
-```{r diastolic blood pressure}
-
-diastolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("diastolic_blood_pressure", measure_bounds))
-
-abnormal_dbp <- check_measure_bounds("diastolic_blood_pressure", measurements, measure_bounds)
-
-check <- glue("Diastolic blood pressure rate is within 0-200 mmHg level")
-
-if (nrow(abnormal_dbp) > 0) {
-  fail_count <- nrow(abnormal_dbp)
-  fail_percentage <- format(round(fail_count / nrow(diastolic_blood_pressure) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(diastolic_blood_pressure), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(diastolic_blood_pressure), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(diastolic_blood_pressure), check, "Pass", "0", "0")
-}
-```
-
-```{r systolic blood pressure}
-
-systolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("systolic_blood_pressure", measure_bounds))
-
-abnormal_sbp <- check_measure_bounds("systolic_blood_pressure", measurements, measure_bounds)
-
-check <- glue("Systolic blood pressure is within 0-400 mmHg level")
-
-if (nrow(abnormal_sbp) > 0) {
-  fail_count <- nrow(abnormal_sbp)
-  fail_percentage <- format(round(fail_count / nrow(systolic_blood_pressure) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(systolic_blood_pressure), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(systolic_blood_pressure), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(systolic_blood_pressure), check, "Pass", "0", "0")
-}
-```
 
 ```{r print measurement checks}
 data_qual_measure %>%

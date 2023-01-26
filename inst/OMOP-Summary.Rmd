@@ -178,6 +178,8 @@ drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspec
   )
 
 glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.inspectEHR"))
+
+custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
 ```
 
 <br></br>

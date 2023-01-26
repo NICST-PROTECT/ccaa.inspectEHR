@@ -1,6 +1,6 @@
-Variable,Concept ID,Lower bound,Upper bound
-heart_rate,4239408,0,450
-temperature,36716470,32,115
-respiratory_rate,4313591,0,100
-diastolic_blood_pressure,4154790,0,200
-systolic_blood_pressure,4152194,0,400
+Variable,Concept ID,Name,Lower bound,Upper bound,measure unit
+heart_rate,4239408,Heart rate,0,450,bpm
+temperature,36716470,Temperature,32,115,F
+respiratory_rate,4313591,Respiratory rate,0,100,bpm
+diastolic_blood_pressure,4154790,Diastolic blood pressure,0,200,mmHg
+systolic_blood_pressure,4152194,Systolic blood pressure,0,400,mmHg

@@ -117,7 +117,8 @@ plot_ethnicity <- function(x) {
 plot_visit_profile <- function(x, start_date, end_date, custom_colors) {
   x %>%
     mutate_at(vars(visit_start_date), ~ as.Date(.)) %>%
-    filter((visit_start_date >= as.Date(start_date, format = "%Y-%m-%d")) & (visit_start_date <= as.Date(end_date, format = "%Y-%m-%d"))) %>%
+    # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
+    # filter((visit_start_date >= as.Date(start_date, format = "%Y-%m-%d")) & (visit_start_date <= as.Date(end_date, format = "%Y-%m-%d"))) %>%
     group_by(visit_start_date, visit_concept_id) %>%
     tally() %>%
     ggplot(aes(
@@ -148,6 +149,7 @@ plot_visit_detail_profile <- function(x, start_date, end_date, custom_colors) {
   x %>%
     mutate_at(vars(visit_detail_start_datetime), ~ as.Date(.)) %>%
     mutate_at(vars(visit_detail_concept_id), ~ as.character(.)) %>%
+    # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
     filter((visit_detail_start_date > as.Date(start_date, format = "%Y-%m-%d")) & (visit_detail_start_date <= as.Date(end_date, format = "%Y-%m-%d"))) %>%
     group_by(visit_detail_start_date, visit_detail_concept_id) %>%
     tally() %>%

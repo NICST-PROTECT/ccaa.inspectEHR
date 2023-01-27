@@ -30,7 +30,6 @@ The report can be run by running the following code.
   with *start_date* and *end_date*.
 - The acceptable tolerance for measurement checks can be given using the
   *measurement_tolerance*
-- The colour codes used in the report are ("#379481","#4CA1CB","#3AB8EE","#569FB2")
 
 ``` r
 library(ccaa.inspectEHR)
@@ -38,24 +37,23 @@ library(ccaa.inspectEHR)
 render_summary_report(
   params = list(
     output = "Summary_report.html",
-    output_path = '#####',
     driver = "PostgreSQL",
     host = "localhost",
     port = 5432,
     dbname = "cca_omop",
     schema = "cca_omop",
-    user = '#####',
-    password = '#####',
+    user = #####,
+    password = #####,
     local_hospital = "ccaa",
     start_date = '2020-01-01',
-    end_date = '2022-10-31'
+    end_date = '2022-10-31',
+    custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
   )
 )
 
 render_quality_report(
   params = list(
     output = "Data_Quality_report.html",
-    output_path = '#####',
     driver = "PostgreSQL",
     host = "localhost",
     port = 5432,

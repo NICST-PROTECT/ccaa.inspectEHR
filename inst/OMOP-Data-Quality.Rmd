@@ -135,7 +135,7 @@ glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.
 <br>
 <br>
 
-## OMOP Structure at `params$local_hospital`
+## OMOP Structure at `r {params$local_hospital}`
 ![](./OMOP structure.jpg){width=100% height=25%}\
 
 <br>
@@ -741,7 +741,7 @@ for(i in 1:nrow(measure_bounds)) {
   
   measurement = measurements %>% filter(measurement_concept_id == get_source_concept_id(measure_bounds$Variable[i], measure_bounds))
   abnormal_measure <- check_measure_bounds(measure_bounds$Variable[i], measurements, measure_bounds)
-  check <- glue(measure_bounds$Name[i]," is within ", measure_bounds$`Lower bound`[i],"-",measure_bounds$`Upper bound`[i]," ", measure_bounds$`measure unit`[i]," level")
+  check <- glue(measure_bounds$Name[i]," is within ", measure_bounds$`Lower bound`[i],"-",measure_bounds$`Upper bound`[i]," ", measure_bounds$`Measure unit`[i]," level")
   
   if (nrow(abnormal_measure) > 0) {
     fail_count <- nrow(abnormal_measure)

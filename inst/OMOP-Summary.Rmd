@@ -62,10 +62,6 @@ params:
     label : "Measurement Toerance(%)"
     value : measurement_tolerance
     input : numeric
-  custom_colors :
-    label : "Custom Colors"
-    value : custom_colors
-    input : list
 ---
 <style type="text/css">
 
@@ -108,7 +104,6 @@ knitr::opts_chunk$set(
 # Connect to the database.
 # Read core tables and prepare overview.
 ctn <- setup_ctn(params)
-schema <- params$schema
 
 period_person_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
 
@@ -185,7 +180,7 @@ custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
 <br></br>
 <br></br>
 
-## OMOP Structure at `params$local_hospital`
+## OMOP Structure at `r {params$local_hospital}`
 ![](./OMOP structure.jpg){width=100% height=25%}\
 
 <br>
@@ -259,11 +254,11 @@ summary %>%
 if ("person" %in% zero_vals) {
   cat("There is no data in the person table")
 } else {
-  age_plot <- plot_age(overview) %>% custom_theme(params$custom_colors)
+  age_plot <- plot_age(overview) %>% custom_theme(custom_colors)
   check_age <- min(overview$age, na.rm = TRUE) >= 18
 
-  sex_plot <- plot_sex(st[["person"]]) %>% custom_theme(params$custom_colors)
-  ethnic_plot <- plot_ethnicity(st[["person"]]) %>% custom_theme(params$custom_colors)
+  sex_plot <- plot_sex(st[["person"]]) %>% custom_theme(custom_colors)
+  ethnic_plot <- plot_ethnicity(st[["person"]]) %>% custom_theme(custom_colors)
 
   age_plot + sex_plot + ethnic_plot
 }
@@ -290,7 +285,7 @@ if (!("visit_occurrence" %in% zero_vals)) {
 
 ```{r visit-profile}
 plot_visit_profile(st[["visit_occurrence"]], params$start_date, params$end_date,
-                   params$custom_colors) %>% custom_theme(params$custom_colors)
+                   custom_colors) %>% custom_theme(custom_colors)
 ```
 
 ```{r admission-from1}
@@ -315,7 +310,7 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
     yend = n,
     xend = admitted_from_concept_id
   )) +
-  scale_colour_manual(values = params$custom_colors, drop = FALSE) +
+  scale_colour_manual(values = custom_colors, drop = FALSE) +
   theme_classic() +
   labs(y = "Count", x = "Type") +
   theme_d() +
@@ -344,7 +339,7 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
     yend = n,
     xend = discharged_to_concept_id
   )) +
-  scale_colour_manual(values = params$custom_colors, drop = FALSE) +
+  scale_colour_manual(values = custom_colors, drop = FALSE) +
   theme_classic() +
   labs(y = "Count", x = "Type") +
   theme_d() +
@@ -354,8 +349,8 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
 
 ```{r plot both admission from and discharge to}
 admission_from_plot %>%
-  custom_theme(params$custom_colors) + discharge_to_plot %>%
-  custom_theme(params$custom_colors)
+  custom_theme(custom_colors) + discharge_to_plot %>%
+  custom_theme(custom_colors)
 ```
 
 <br>
@@ -375,7 +370,7 @@ if (!("visit_detail" %in% zero_vals)) {
 ```
 
 ```{r visit-detail-profile}
-plot_visit_detail_profile(visit_detail, params$start_date, params$end_date, params$custom_colors) %>% custom_theme(params$custom_colors)
+plot_visit_detail_profile(visit_detail, params$start_date, params$end_date, custom_colors) %>% custom_theme(params$custom_colors)
 ```
 
 <br>
@@ -415,9 +410,9 @@ outcome_dist <- overview %>%
   geom_density(alpha = 0.5) +
   labs(x = "Event time distribution", fill = "Event", y = "Density") +
   theme(legend.position = "bottom") +
-  scale_fill_manual(values = params$custom_colors)
+  scale_fill_manual(values = custom_colors)
 
-outcome_dist %>% custom_theme(params$custom_colors)
+outcome_dist %>% custom_theme(custom_colors)
 ```
 <br>
 <br>

@@ -103,25 +103,22 @@ knitr::opts_chunk$set(
 ```{r prepare-st}
 
 ctn <- setup_ctn(params)
-schema <- params$schema
 
-tolerance <- params$measurement_tolerance
+period_person_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
 
-period_person_ids <- get_period_patients(ctn, schema, params$start_date, params$end_date)
-
-observation_period <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
+observation_period <- tbl(ctn, in_schema(params$schema, "observation_period")) %>% as_tibble()
 observation_period <- observation_period %>%
   filter(person_id %in% period_person_ids)
 
-visit_detail <- tbl(ctn, in_schema(schema, "visit_detail")) %>%
+visit_detail <- tbl(ctn, in_schema(params$schema, "visit_detail")) %>%
   as_tibble() %>%
   filter(person_id %in% period_person_ids)
 
-measurements <- tbl(ctn, in_schema(schema, "measurement")) %>%
+measurements <- tbl(ctn, in_schema(params$schema, "measurement")) %>%
   as_tibble() %>%
   filter(person_id %in% period_person_ids)
 
-st <- prepare_tables(ctn, schema) %>%
+st <- prepare_tables(ctn, params$schema) %>%
   map(~
     filter(., person_id %in% period_person_ids))
 
@@ -153,7 +150,7 @@ glossary %>%
 
 
 ```{r}
-clinical_tbls <- prepare_tally(ctn, schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
+clinical_tbls <- prepare_tally(ctn, params$schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
 
 zero_vals <- clinical_tbls %>%
   filter(n == 0) %>%
@@ -733,7 +730,7 @@ if(nrow(visit_detail) != 0){
 <br>
 
 ## Measurements
-The status of the pass/failure of the measurement checks undergo with `r {tolerance}`% tolerance. 
+The status of the pass/failure of the measurement checks undergo with `r {params$measurement_tolerance}`% tolerance. 
 ```{r}
 data_qual_measure <- data.frame(matrix(ncol = 4, nrow = 0))
 colnames(data_qual_measure) <- c("Check", "Number of entries", "Status", "Out of range : n(%)")
@@ -747,7 +744,6 @@ for(i in 1:nrow(measure_bounds)) {
   check <- glue(measure_bounds$Name[i]," is within ", measure_bounds$`Lower bound`[i],"-",measure_bounds$`Upper bound`[i]," ", measure_bounds$`measure unit`[i]," level")
   
   if (nrow(abnormal_measure) > 0) {
-    
     fail_count <- nrow(abnormal_measure)
     fail_percentage <- format(round(fail_count / nrow(measurement) * 100, 4), scientific = FALSE)
     if (as.numeric(fail_percentage) > as.numeric(params$measurement_tolerance)) {

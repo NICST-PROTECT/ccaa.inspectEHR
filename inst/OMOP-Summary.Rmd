@@ -110,17 +110,17 @@ knitr::opts_chunk$set(
 ctn <- setup_ctn(params)
 schema <- params$schema
 
-period_person_ids <- get_period_patients(ctn, schema, params$start_date, params$end_date)
+period_person_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
 
-observation_period <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
+observation_period <- tbl(ctn, in_schema(params$schema, "observation_period")) %>% as_tibble()
 observation_period <- observation_period %>% filter(person_id %in% period_person_ids)
 
-visit_detail <- tbl(ctn, in_schema(schema, "visit_detail")) %>%
+visit_detail <- tbl(ctn, in_schema(params$schema, "visit_detail")) %>%
   as_tibble() %>%
   filter(person_id %in% period_person_ids) %>%
-  get_concept_names(ctn, schema)
+  get_concept_names(ctn, params$schema)
 
-st <- prepare_tables(ctn, schema) %>%
+st <- prepare_tables(ctn, params$schema) %>%
   map(~
     filter(., person_id %in% period_person_ids))
 
@@ -130,7 +130,7 @@ overview <- prepare_overview(st)
 care_sites <- unique(st[["person"]]$care_site_id)
 
 # Getting counts of all the tables.
-table_counts <- prepare_tally(ctn, schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
+table_counts <- prepare_tally(ctn, params$schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
 
 zero_vals <- table_counts %>%
   filter(n == 0) %>%
@@ -141,7 +141,7 @@ zero_vals <- table_counts %>%
 measurement_observation_summary <- read_file(system.file("measurement_observation_summary.sql",
   package = "ccaa.inspectEHR"
 )) %>%
-  str_replace_all(":OMOP_SCHEMA", schema) %>%
+  str_replace_all(":OMOP_SCHEMA", params$schema) %>%
   str_replace_all("date_start", params$start_date) %>%
   str_replace_all("date_end", params$end_dat) %>%
   dbGetQuery(ctn, .) %>%
@@ -156,7 +156,7 @@ measurement_observation_summary <- read_file(system.file("measurement_observatio
   )
 
 condition_procedure_summary <- read_file(system.file("condition_procedure_summary.sql", package = "ccaa.inspectEHR")) %>%
-  str_replace_all(":OMOP_SCHEMA", schema) %>%
+  str_replace_all(":OMOP_SCHEMA", params$schema) %>%
   str_replace_all("date_start", params$start_date) %>%
   str_replace_all("date_end", params$end_dat) %>%
   dbGetQuery(ctn, .) %>%
@@ -167,7 +167,7 @@ condition_procedure_summary <- read_file(system.file("condition_procedure_summar
   )
 
 drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspectEHR")) %>%
-  str_replace_all(":OMOP_SCHEMA", schema) %>%
+  str_replace_all(":OMOP_SCHEMA", params$schema) %>%
   str_replace_all("date_start", params$start_date) %>%
   str_replace_all("date_end", params$end_dat) %>%
   dbGetQuery(ctn, .) %>%
@@ -178,6 +178,8 @@ drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspec
   )
 
 glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.inspectEHR"))
+
+custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
 ```
 
 <br></br>

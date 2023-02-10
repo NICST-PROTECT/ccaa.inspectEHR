@@ -36,9 +36,9 @@ match_concepts <- function(column, lookup) {
 mini_dict <- function(ctn, schema, concept_ids) {
   tbl(src = ctn, in_schema(schema = schema, table = "concept")) %>%
     filter(concept_id %in% !!concept_ids) %>%
-    select(.data$concept_id, .data$concept_name) %>%
+    select(concept_id, concept_name) %>%
     collect() %>%
-    mutate(concept_id = as.integer(.data$concept_id))
+    mutate(concept_id = as.integer(concept_id))
 }
 
 
@@ -59,7 +59,7 @@ check_zero_tally <- function(x, column) {
   x %>%
     mutate(.is_zero = if_else({{ column }} == 0, "yes", "no")) %>%
     mutate(.is_zero = factor(
-      x = .data$.is_zero,
+      x = .is_zero,
       levels = c("yes", "no"),
       labels = c("yes", "no")
     ))

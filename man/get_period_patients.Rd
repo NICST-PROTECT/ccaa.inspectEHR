@@ -15,9 +15,6 @@ get_period_patients(ctn, schema, start_date, end_date)
 
 \item{df}{the dataframe which patients selects from}
 }
-\value{
-
-}
 \description{
 Get patients for a selected time period and return as a list
 Based on this list all the tables will be filtered

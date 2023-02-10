@@ -22,9 +22,6 @@ database connection details, or a list that contains these details:
 
 \item{output}{an output file path}
 }
-\value{
-
-}
 \description{
 Render Quality Report
 }

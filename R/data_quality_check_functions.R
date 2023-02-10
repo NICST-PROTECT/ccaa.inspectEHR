@@ -113,7 +113,7 @@ check_measure_bounds <- function(measure, measurement, bound_df) {
 #' This function will add data quality queries and thair status in to a one dataframe
 #'
 #' @param qual_df  the data frame where to add data quality query and status
-#' @param Total the denominator of the check
+#' @param total the denominator of the check
 #' @param check the check/query
 #' @param status Pass/Fail status
 #' @param fail_count fail count, if check pass this is zero
@@ -121,8 +121,8 @@ check_measure_bounds <- function(measure, measurement, bound_df) {
 #'
 #' @return
 
-add_new_check <- function(qual_df, Total, check, status, fail_count, fail_percentage) {
-  new_row <- c(check, Total, status, paste(fail_count, paste("(", fail_percentage, "%)")))
+add_new_check <- function(qual_df, total, check, status, fail_count, fail_percentage) {
+  new_row <- c(check, total, status, paste(fail_count, paste0(" (", fail_percentage, "%)")))
   qual_df[nrow(qual_df) + 1, ] <- new_row
   return(qual_df)
 }

@@ -19,9 +19,6 @@ prepare_tally(
 
 \item{schema}{character vector of target schema}
 }
-\value{
-
-}
 \description{
 Prepare Tally of Clinical Tables
 }

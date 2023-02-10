@@ -13,9 +13,6 @@ check_measure_bounds(measure, measurement, bound_df)
 
 \item{bound_df}{the data table which have all the measurement bounds}
 }
-\value{
-
-}
 \description{
 This function will check whether the given measurement is within the acceptable rate
 }

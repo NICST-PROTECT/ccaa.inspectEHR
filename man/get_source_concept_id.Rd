@@ -11,9 +11,6 @@ get_source_concept_id(measure_field, mapping_sheet)
 
 \item{mapping_sheet}{the mapping sheet which have the source field and concept id mappings}
 }
-\value{
-
-}
 \description{
 This function will give the concept_id of a given source field in the mapping sheet
 }

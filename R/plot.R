@@ -23,7 +23,7 @@ plot_age <- function(x) {
       yend = age
     )) +
     theme_d() +
-    labs(y = "Age", x = "Count") +
+    labs(y = "", x = "Count") +
     theme(axis.title.y = element_blank()) +
     ggtitle("Age distribution")
 }
@@ -47,7 +47,7 @@ plot_sex <- function(x) {
       xend = n,
       yend = gender_concept_id
     )) +
-    labs(x = "Count", y = "Category") +
+    labs(x = "Count", y = "") +
     theme_d() +
     theme(axis.title.y = element_blank()) +
     ggtitle("Sex distribution")
@@ -96,7 +96,7 @@ plot_ethnicity <- function(x) {
       xend = n,
       yend = race_concept_id
     )) +
-    labs(x = "Count", y = "Category") +
+    labs(x = "Count", y = "") +
     theme_d() +
     theme(axis.title.y = element_blank()) +
     ggtitle("Ethnicity distribution")

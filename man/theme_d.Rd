@@ -9,9 +9,6 @@ theme_d(...)
 \arguments{
 \item{...}{arguments to pass to \code{theme}}
 }
-\value{
-
-}
 \description{
 Plot Theme
 }

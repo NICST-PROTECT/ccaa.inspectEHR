@@ -9,9 +9,6 @@ prepare_overview(x)
 \arguments{
 \item{x}{the output from \code{\link{prepare_tables}}}
 }
-\value{
-
-}
 \description{
 Prepare Overview Table
 }

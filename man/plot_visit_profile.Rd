@@ -11,9 +11,6 @@ plot_visit_profile(x, start_date, end_date, custom_colors)
 
 \item{end_date}{ending dare for x axis}
 }
-\value{
-
-}
 \description{
 Plot Visit Profile
 }

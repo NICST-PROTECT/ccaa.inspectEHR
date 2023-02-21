@@ -56,7 +56,7 @@ prepare_tables <- function(connection, schema_name) {
                        values_to = "concept_id"
           )) %>%
     bind_rows() %>%
-    distinct(.data$concept_id, .keep_all = TRUE)
+    distinct(concept_id, .keep_all = TRUE)
 
   replace_names <- mini_dict(connection, schema_name, all_concepts$concept_id)
 
@@ -70,11 +70,9 @@ prepare_tables <- function(connection, schema_name) {
           mutate(
             .,
             across(
-              c(
-                contains("concept_id"),
-                -contains("source"),
-                contains("[admitted_from_concept_id][admitting_source_concept_id]")
-              ),
+              c(contains("concept_id") & 
+                  # Have to exclude most thing with the word source, but one of them is need.
+                  (!contains("source") | contains("admitting_source_concept_id"))),
               match_concepts,
               lookup = replace_names
             )
@@ -102,17 +100,16 @@ prepare_tables <- function(connection, schema_name) {
 #' @return
 prepare_overview <- function(x) {
   x[["person"]] %>%
-    select(
-      .data$person_id,
-      .data$gender_concept_id,
-      .data$year_of_birth
+    select(person_id, 
+           gender_concept_id,
+           year_of_birth
     ) %>%
     left_join(
       x[["death"]] %>%
         select(
-          .data$person_id,
-          .data$death_date,
-          .data$death_datetime
+          person_id,
+          death_date,
+          death_datetime
         ),
       by = "person_id"
     ) %>%
@@ -131,8 +128,8 @@ prepare_overview <- function(x) {
     # As per OMOP guidance, missing dates of birth are imputed as June 15th.
     mutate(
       age = interval(
-        start = as.Date(paste0(.data$year_of_birth, "-06-15")),
-        end = .data$visit_start_datetime
+        start = as.Date(paste0(year_of_birth, "-06-15")),
+        end = visit_start_datetime
       ) / years(1)
     )
 }
@@ -202,17 +199,15 @@ get_concept_names <- function(df, connection, schema_name) {
                  names_to = "column_name",
                  values_to = "concept_id"
     ) %>%
-    distinct(.data$concept_id, .keep_all = TRUE)
+    distinct(concept_id, .keep_all = TRUE)
 
   replace_names <- mini_dict(connection, schema_name, all_concepts$concept_id)
 
   df <- df %>%
     mutate(., across(where(is.integer64), as.integer)) %>%
     mutate(., across(
-      c(
-        contains("concept_id"),
-        -contains("source"),
-        contains("[admitted_from_concept_id][admitting_source_concept_id]")
+      c(contains("concept_id") &
+          (!contains("source") | contains("admitting_source_concept_id"))
       ),
       match_concepts,
       lookup = replace_names

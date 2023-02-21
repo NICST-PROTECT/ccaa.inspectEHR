@@ -96,6 +96,12 @@ knitr::opts_chunk$set(
   out.width = "100%",
   dpi = 300
 )
+
+if(params$local_hospital == "CCAA"){
+  ccaa <- TRUE
+} else{
+  ccaa <- FALSE
+}
 ```
 
 
@@ -135,8 +141,11 @@ glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.
 <br>
 <br>
 
-## OMOP Structure at `r {params$local_hospital}`
-![](./OMOP structure.jpg){width=100% height=25%}\
+
+```{r, eval = ccaa, width=100, height=25}
+asis_output("## OMOP Structure at `r {params$local_hospital}`\\n") 
+knitr::include_graphics('./OMOP structure.jpg')
+```
 
 <br>
 
@@ -525,11 +534,12 @@ data_qual_visit_ch %>%
 <br>
 <br>
 
-## Visit Details Table
+## Visit Detail Table
+
 
 ```{r}
 if(nrow(visit_detail) == 0){
-print("Visit detail table is empty")
+asis_output("The Visit Detail table is empty")
 }
 ```
 
@@ -729,8 +739,9 @@ if(nrow(visit_detail) != 0){
 <br>
 <br>
 
-## Measurements
+## Measurement Table
 The status of the pass/failure of the measurement checks undergo with `r {params$measurement_tolerance}`% tolerance. 
+
 ```{r}
 data_qual_measure <- data.frame(matrix(ncol = 4, nrow = 0))
 colnames(data_qual_measure) <- c("Check", "Number of entries", "Status", "Out of range : n(%)")

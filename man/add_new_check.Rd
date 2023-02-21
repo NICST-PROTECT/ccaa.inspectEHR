@@ -4,12 +4,12 @@
 \alias{add_new_check}
 \title{This function will add data quality queries and thair status in to a one dataframe}
 \usage{
-add_new_check(qual_df, Total, check, status, fail_count, fail_percentage)
+add_new_check(qual_df, total, check, status, fail_count, fail_percentage)
 }
 \arguments{
 \item{qual_df}{the data frame where to add data quality query and status}
 
-\item{Total}{the denominator of the check}
+\item{total}{the denominator of the check}
 
 \item{check}{the check/query}
 
@@ -18,9 +18,6 @@ add_new_check(qual_df, Total, check, status, fail_count, fail_percentage)
 \item{fail_count}{fail count, if check pass this is zero}
 
 \item{fail_percentage}{fail percentage, if check pass this is zero}
-}
-\value{
-
 }
 \description{
 This function will add data quality queries and thair status in to a one dataframe

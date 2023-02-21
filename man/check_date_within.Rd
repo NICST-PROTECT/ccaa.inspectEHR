@@ -17,9 +17,6 @@ check_date_within(check_df, check_date, compare_df, compare_date, check_arg)
 
 \item{check_col}{the column interested within dataset for checking}
 }
-\value{
-
-}
 \description{
 check whether a date is before or after the given date from a dataframe
 }

@@ -96,6 +96,12 @@ knitr::opts_chunk$set(
   out.width = "100%",
   dpi = 300
 )
+
+if(params$local_hospital == "CCAA"){
+  ccaa <- TRUE
+} else{
+  ccaa <- FALSE
+}
 ```
 
 
@@ -180,8 +186,10 @@ custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
 <br></br>
 <br></br>
 
-## OMOP Structure at `r {params$local_hospital}`
-![](./OMOP structure.jpg){width=100% height=25%}\
+```{r, eval = ccaa, width=100, height=25}
+asis_output("## OMOP Structure at `r {params$local_hospital}`\\n") 
+knitr::include_graphics('./OMOP structure.jpg')
+```
 
 <br>
 
@@ -260,7 +268,9 @@ if ("person" %in% zero_vals) {
   sex_plot <- plot_sex(st[["person"]]) %>% custom_theme(custom_colors)
   ethnic_plot <- plot_ethnicity(st[["person"]]) %>% custom_theme(custom_colors)
 
-  age_plot + sex_plot + ethnic_plot
+  age_plot + sex_plot + ethnic_plot & theme(axis.title = element_text(size = 6),
+                                            axis.text = element_text(size = 6),
+        plot.title = element_text(size = 12))
 }
 ```
 
@@ -290,8 +300,10 @@ plot_visit_profile(st[["visit_occurrence"]], params$start_date, params$end_date,
 
 ```{r admission-from1}
 st[["visit_occurrence"]] %>%
-  group_by(across(contains("[admitted_from_concept_id][admitting_source_concept_id]"))) %>%
-  tally() %>%
+  select("Source of admission" = any_of(c("admitted_from_concept_id", "admitting_source_concept_id"))) %>% 
+  group_by(`Source of admission`) %>%
+  tally(name = "Number of admissions") %>%
+  arrange(desc(`Number of admissions`)) %>% 
   print_large_kable()
 ```
 
@@ -304,24 +316,30 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
   tally() %>%
   check_zero_tally(n) %>%
   ggplot(aes(x = admitted_from_concept_id)) +
-  geom_point(aes(y = n, colour = .is_zero)) +
+  geom_point(aes(y = n)) +
   geom_segment(aes(
     y = 0,
     yend = n,
     xend = admitted_from_concept_id
   )) +
+
   scale_colour_manual(values = custom_colors, drop = FALSE) +
   theme_classic() +
-  labs(y = "Count", x = "Type") +
+  theme(axis.title = element_text(size = 6),
+        axis.text = element_text(size = 6),
+        legend.position = "none") +
+  labs(y = "Count", x = "") +
   theme_d() +
   coord_flip() +
-  ggtitle("Admission Source")
+  ggtitle("Source of admission")
 ```
 
 ```{r discharge-to1}
 st[["visit_occurrence"]] %>%
-  group_by(across(contains("discharged_to_concept_id|discharge_to_concept_id"))) %>%
-  tally() %>%
+  select("Discharge destination" = any_of(c("discharged_to_concept_id", "discharge_to_concept_id"))) %>% 
+  group_by(`Discharge destination`) %>%
+  tally(name = "Number of admissions") %>%
+  arrange(desc(`Number of admissions`)) %>% 
   print_large_kable()
 ```
 
@@ -333,32 +351,46 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
   tally() %>%
   check_zero_tally(n) %>%
   ggplot(aes(x = discharged_to_concept_id)) +
-  geom_point(aes(y = n, colour = .is_zero)) +
+  geom_point(aes(y = n)) +
   geom_segment(aes(
     y = 0,
     yend = n,
     xend = discharged_to_concept_id
   )) +
+
   scale_colour_manual(values = custom_colors, drop = FALSE) +
   theme_classic() +
-  labs(y = "Count", x = "Type") +
+  theme(axis.title = element_text(size = 6),
+        axis.text = element_text(size = 6),
+        legend.position = "none") +
+  labs(y = "Count", x = "") +
   theme_d() +
   coord_flip() +
-  ggtitle("Discharge To")
+  ggtitle("Discharge Destination")
 ```
 
 ```{r plot both admission from and discharge to}
 admission_from_plot %>%
   custom_theme(custom_colors) + discharge_to_plot %>%
-  custom_theme(custom_colors)
+  custom_theme(custom_colors) +
+  theme(axis.title = element_text(size = 6),
+        axis.text = element_text(size = 6),
+        plot.title = element_text(size = 12))
 ```
 
 <br>
 <br>
 
 ## Visit Detail
+
+```{r}
+if(nrow(visit_detail) == 0){
+asis_output("The Visit Detail table is empty")
+}
+```
+
 ```{r visit_detail-types}
-if (!("visit_detail" %in% zero_vals)) {
+if (nrow(visit_detail) != 0) {
   visit_detail %>%
     group_by(visit_detail_concept_id) %>%
     summarise(
@@ -370,7 +402,9 @@ if (!("visit_detail" %in% zero_vals)) {
 ```
 
 ```{r visit-detail-profile}
-plot_visit_detail_profile(visit_detail, params$start_date, params$end_date, custom_colors) %>% custom_theme(params$custom_colors)
+if (nrow(visit_detail) != 0) {
+  plot_visit_detail_profile(visit_detail, params$start_date, params$end_date, custom_colors) %>% custom_theme(custom_colors)
+}
 ```
 
 <br>

@@ -45,7 +45,7 @@ render_summary_report(
     schema = "cca_omop",
     user = '#####',
     password = '#####',
-    local_hospital = "ccaa",
+    local_hospital = "CCAA",
     start_date = '2020-01-01',
     end_date = '2022-10-31'
   )
@@ -62,7 +62,7 @@ render_quality_report(
     schema = "cca_omop",
     user = '######',
     password = '######',
-    local_hospital = "ccaa",
+    local_hospital = "CCAA",
     start_date = '2020-01-01',
     end_date = '2022-10-31',
     measurement_tolerance = '0.01'

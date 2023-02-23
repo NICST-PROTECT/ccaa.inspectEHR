@@ -2,16 +2,13 @@
 % Please edit documentation in R/plot.R
 \name{theme_d}
 \alias{theme_d}
-\title{DECOVID Plot Theme}
+\title{Plot Theme}
 \usage{
 theme_d(...)
 }
 \arguments{
 \item{...}{arguments to pass to \code{theme}}
 }
-\value{
-
-}
 \description{
-DECOVID Plot Theme
+Plot Theme
 }

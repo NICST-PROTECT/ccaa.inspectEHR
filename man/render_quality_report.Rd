@@ -7,9 +7,7 @@
 render_quality_report(params = "ask")
 }
 \arguments{
-\item{output}{an output file path}
-
-\item{prams}{a string "ask", which will launch an interactive window to enter
+\item{params}{a string "ask", which will launch an interactive window to enter
 database connection details, or a list that contains these details:
 \itemize{
 \item driver: string, can be any of: "PostgreSQL", "ODBC", or "SQLite"
@@ -21,9 +19,8 @@ database connection details, or a list that contains these details:
 \item password: string, database user password
 \item local_hospital: string, local hospital
 }}
-}
-\value{
 
+\item{output}{an output file path}
 }
 \description{
 Render Quality Report

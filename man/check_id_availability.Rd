@@ -14,9 +14,6 @@ check_id_availability(check_df, check_col, compare_df, compare_col)
 
 \item{compare_col}{}
 }
-\value{
-
-}
 \description{
 check one column values appear in another column at least once
 in a given data frame column

@@ -11,9 +11,6 @@ find_duplicates(dataset, column)
 
 \item{column}{the column interested within ''}
 }
-\value{
-
-}
 \description{
 check duplicates of a given data frame column
 }

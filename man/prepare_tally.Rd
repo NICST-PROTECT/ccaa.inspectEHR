@@ -9,16 +9,15 @@ prepare_tally(
   schema,
   tbl_names = c("person", "care_site", "death", "visit_occurrence",
     "procedure_occurrence", "drug_exposure", "condition_occurrence", "measurement",
-    "observation")
+    "observation"),
+  filter_person_ids,
+  filter_care_sites
 )
 }
 \arguments{
 \item{ctn}{database connection}
 
 \item{schema}{character vector of target schema}
-}
-\value{
-
 }
 \description{
 Prepare Tally of Clinical Tables

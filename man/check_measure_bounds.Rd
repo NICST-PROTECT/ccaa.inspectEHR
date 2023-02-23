@@ -4,17 +4,14 @@
 \alias{check_measure_bounds}
 \title{This function will check whether the given measurement is within the acceptable rate}
 \usage{
-check_measure_bounds(measurement, bound_df, check_df)
+check_measure_bounds(measure, measurement, bound_df)
 }
 \arguments{
+\item{measure}{measure name}
+
 \item{measurement}{the measurement variable that need to check}
 
 \item{bound_df}{the data table which have all the measurement bounds}
-
-\item{check_df}{the dataframe}
-}
-\value{
-
 }
 \description{
 This function will check whether the given measurement is within the acceptable rate

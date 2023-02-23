@@ -23,7 +23,7 @@ plot_age <- function(x) {
       yend = age
     )) +
     theme_d() +
-    labs(y = "Age", x = "Count") +
+    labs(y = "", x = "Count") +
     theme(axis.title.y = element_blank()) +
     ggtitle("Age distribution")
 }
@@ -47,7 +47,7 @@ plot_sex <- function(x) {
       xend = n,
       yend = gender_concept_id
     )) +
-    labs(x = "Count", y = "Category") +
+    labs(x = "Count", y = "") +
     theme_d() +
     theme(axis.title.y = element_blank()) +
     ggtitle("Sex distribution")
@@ -96,7 +96,7 @@ plot_ethnicity <- function(x) {
       xend = n,
       yend = race_concept_id
     )) +
-    labs(x = "Count", y = "Category") +
+    labs(x = "Count", y = "") +
     theme_d() +
     theme(axis.title.y = element_blank()) +
     ggtitle("Ethnicity distribution")
@@ -117,7 +117,6 @@ plot_ethnicity <- function(x) {
 plot_visit_profile <- function(x, start_date, end_date, custom_colors) {
   x %>%
     mutate_at(vars(visit_start_date), ~ as.Date(.)) %>%
-    # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
     filter((visit_start_date >= as.Date(start_date, format = "%Y-%m-%d")) & (visit_start_date <= as.Date(end_date, format = "%Y-%m-%d"))) %>%
     group_by(visit_start_date, visit_concept_id) %>%
     tally() %>%
@@ -149,7 +148,6 @@ plot_visit_detail_profile <- function(x, start_date, end_date, custom_colors) {
   x %>%
     mutate_at(vars(visit_detail_start_datetime), ~ as.Date(.)) %>%
     mutate_at(vars(visit_detail_concept_id), ~ as.character(.)) %>%
-    # Shouldn't really hardcode these dates. Will edit as we set tolerance for data quality report.
     filter((visit_detail_start_date > as.Date(start_date, format = "%Y-%m-%d")) & (visit_detail_start_date <= as.Date(end_date, format = "%Y-%m-%d"))) %>%
     group_by(visit_detail_start_date, visit_detail_concept_id) %>%
     tally() %>%

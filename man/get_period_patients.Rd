@@ -3,21 +3,20 @@
 \name{get_period_patients}
 \alias{get_period_patients}
 \title{Get patients for a selected time period and return as a list
-Beased on this list all the tables will be filtered}
+Based on this list all the tables will be filtered
+to get the period patients, the observation period table is used}
 \usage{
-get_period_patients(df, start_date, end_date)
+get_period_patients(ctn, schema, start_date, end_date)
 }
 \arguments{
-\item{df}{the dataframe which patients selects from}
-
 \item{start_date}{begining of the period}
 
 \item{end_date}{end of the period}
-}
-\value{
 
+\item{df}{the dataframe which patients selects from}
 }
 \description{
 Get patients for a selected time period and return as a list
-Beased on this list all the tables will be filtered
+Based on this list all the tables will be filtered
+to get the period patients, the observation period table is used
 }

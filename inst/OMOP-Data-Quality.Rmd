@@ -1,5 +1,5 @@
 ---
-title: "CCAA Repository Data Quality Report"
+title: "Data Quality Report"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document:
@@ -96,6 +96,12 @@ knitr::opts_chunk$set(
   out.width = "100%",
   dpi = 300
 )
+
+if(params$local_hospital == "CCAA"){
+  ccaa <- TRUE
+} else{
+  ccaa <- FALSE
+}
 ```
 
 
@@ -103,27 +109,27 @@ knitr::opts_chunk$set(
 ```{r prepare-st}
 
 ctn <- setup_ctn(params)
-schema <- params$schema
 
-tolerance <- params$measurement_tolerance
+period_person_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
 
-observation_period <- tbl(ctn, in_schema(schema, "observation_period")) %>% as_tibble()
+observation_period <- tbl(ctn, in_schema(params$schema, "observation_period")) %>% as_tibble()
 observation_period <- observation_period %>%
-  filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
+  filter(person_id %in% period_person_ids)
 
-visit_detail <- tbl(ctn, in_schema(schema, "visit_detail")) %>%
+visit_detail <- tbl(ctn, in_schema(params$schema, "visit_detail")) %>%
   as_tibble() %>%
-  filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
+  filter(person_id %in% period_person_ids)
 
-measurements <- tbl(ctn, in_schema(schema, "measurement")) %>%
+measurements <- tbl(ctn, in_schema(params$schema, "measurement")) %>%
   as_tibble() %>%
-  filter(person_id %in% get_period_patients(observation_period, params$start_date, params$end_date))
+  filter(person_id %in% period_person_ids)
 
-st <- prepare_tables(ctn, schema) %>%
+st <- prepare_tables(ctn, params$schema) %>%
   map(~
-    filter(., person_id %in% get_period_patients(observation_period, params$start_date, params$end_date)))
+    filter(., person_id %in% period_person_ids))
 
 overview <- prepare_overview(st)
+care_sites <- unique(st[["person"]]$care_site_id)
 
 measure_bounds <- read_csv(file = system.file("data", "measure_bounds.csv", package = "ccaa.inspectEHR"))
 
@@ -135,8 +141,11 @@ glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.
 <br>
 <br>
 
-## OMOP Structure on CCAA
-![](./OMOP structure.jpg){width=100% height=25%}\
+
+```{r, eval = ccaa, width=100, height=25}
+asis_output("## OMOP Structure at `r {params$local_hospital}`\\n") 
+knitr::include_graphics('./OMOP structure.jpg')
+```
 
 <br>
 
@@ -150,7 +159,7 @@ glossary %>%
 
 
 ```{r}
-clinical_tbls <- prepare_tally(ctn, schema)
+clinical_tbls <- prepare_tally(ctn, params$schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
 
 zero_vals <- clinical_tbls %>%
   filter(n == 0) %>%
@@ -525,304 +534,240 @@ data_qual_visit_ch %>%
 <br>
 <br>
 
-## Visit Details Table
+## Visit Detail Table
+
 
 ```{r}
-data_qual_visit_det <- data.frame(matrix(ncol = 4, nrow = 0))
-colnames(data_qual_visit_det) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
-```
-
-```{r}
-# uniquness of visit_detail_id over the person_id, visit_detail_start_date and visit_detail_end_date
-duplicates <- find_duplicates(visit_detail, c("visit_detail_id", "person_id", "visit_detail_start_date", "visit_detail_end_date"))
-check <- "Visit detail ID is unique based on person ID, visit detail start date and end date"
-if (nrow(duplicates) > 0) {
-  fail_count <- nrow(duplicates)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+if(nrow(visit_detail) == 0){
+asis_output("The Visit Detail table is empty")
 }
 ```
 
 ```{r}
-# check date of visit detail start datetime mach with visit detail start date
-
-visit_detail <- visit_detail %>% mutate(visit_detail_start_date_from_dt = format(as.Date(visit_detail_start_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
-
-visit_detail_start_date_check <- check_date_within(visit_detail, "visit_detail_start_date", visit_detail, "visit_detail_start_date_from_dt", "!=")
-
-check <- "Date of visit detail start datetime matches with visit detail start date"
-if (nrow(visit_detail_start_date_check) > 0) {
-  fail_count <- nrow(visit_detail_start_date_check)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+if(nrow(visit_detail) != 0){
+  data_qual_visit_det <- data.frame(matrix(ncol = 4, nrow = 0))
+  colnames(data_qual_visit_det) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
 }
+```
 
+```{r}
+if(nrow(visit_detail) != 0){
+  # uniquness of visit_detail_id over the person_id, visit_detail_start_date and visit_detail_end_date
+  duplicates <- find_duplicates(visit_detail, c("visit_detail_id", "person_id", "visit_detail_start_date", "visit_detail_end_date"))
+  check <- "Visit detail ID is unique based on person ID, visit detail start date and end date"
+  if (nrow(duplicates) > 0) {
+    fail_count <- nrow(duplicates)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
+}
+```
 
-# check date of visit detail end datetime mach with visit end date
-
-visit_detail <- visit_detail %>% mutate(visit_detail_end_date_from_dt = format(as.Date(visit_detail_end_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
-
-visit_detail_end_date_check <- check_date_within(visit_detail, "visit_detail_end_date", visit_detail, "visit_detail_end_date_from_dt", "!=")
-
-check <- "Date of visit detail end datetime matches with visit detail end date"
-if (nrow(visit_detail_end_date_check) > 0) {
-  fail_count <- nrow(visit_detail_end_date_check)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+```{r}
+if(nrow(visit_detail) != 0){
+  # check date of visit detail start datetime mach with visit detail start date
+  
+  visit_detail <- visit_detail %>% mutate(visit_detail_start_date_from_dt = format(as.Date(visit_detail_start_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
+  
+  visit_detail_start_date_check <- check_date_within(visit_detail, "visit_detail_start_date", visit_detail, "visit_detail_start_date_from_dt", "!=")
+  
+  check <- "Date of visit detail start datetime matches with visit detail start date"
+  if (nrow(visit_detail_start_date_check) > 0) {
+    fail_count <- nrow(visit_detail_start_date_check)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
+  
+  
+  # check date of visit detail end datetime mach with visit end date
+  
+  visit_detail <- visit_detail %>% mutate(visit_detail_end_date_from_dt = format(as.Date(visit_detail_end_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
+  
+  visit_detail_end_date_check <- check_date_within(visit_detail, "visit_detail_end_date", visit_detail, "visit_detail_end_date_from_dt", "!=")
+  
+  check <- "Date of visit detail end datetime matches with visit detail end date"
+  if (nrow(visit_detail_end_date_check) > 0) {
+    fail_count <- nrow(visit_detail_end_date_check)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
 }
 ```
 
 ```{r visit details start date check}
-
-## visit detail start date
-
-start_visit_det_obs <- check_date_within(visit_detail, "visit_detail_start_date", observation_period, "observation_period_start_date", "<")
-
-
-start_visit_det_dt_obs <- check_date_within(visit_detail, "visit_detail_start_datetime", observation_period, "observation_period_start_date", "<")
-
-check <- "Visit detail start date time is on or after the corresponding observation period start date"
-if (nrow(start_visit_det_dt_obs) > 0) {
-  fail_count <- nrow(start_visit_det_dt_obs)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
-}
-
-
-start_visit_det_occ <- check_date_within(visit_detail, "visit_detail_start_date", st[["visit_occurrence"]], "visit_start_date", "<")
-
-check <- "Visit detail start date is on or after the corresponding visit occurrence start date"
-if (nrow(start_visit_det_occ) > 0) {
-  fail_count <- nrow(start_visit_det_occ)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
-}
-
-
-start_visit_det_dt_occ <- check_date_within(visit_detail, "visit_detail_start_datetime", st[["visit_occurrence"]], "visit_start_date", "<")
-
-check <- "Visit detail start date time is on or after the corresponding visit occurrence start date time"
-if (nrow(start_visit_det_dt_occ) > 0) {
-  fail_count <- nrow(start_visit_det_dt_occ)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+if(nrow(visit_detail) != 0){
+  ## visit detail start date
+  
+  start_visit_det_obs <- check_date_within(visit_detail, "visit_detail_start_date", observation_period, "observation_period_start_date", "<")
+  
+  
+  start_visit_det_dt_obs <- check_date_within(visit_detail, "visit_detail_start_datetime", observation_period, "observation_period_start_date", "<")
+  
+  check <- "Visit detail start date time is on or after the corresponding observation period start date"
+  if (nrow(start_visit_det_dt_obs) > 0) {
+    fail_count <- nrow(start_visit_det_dt_obs)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
+  
+  
+  start_visit_det_occ <- check_date_within(visit_detail, "visit_detail_start_date", st[["visit_occurrence"]], "visit_start_date", "<")
+  
+  check <- "Visit detail start date is on or after the corresponding visit occurrence start date"
+  if (nrow(start_visit_det_occ) > 0) {
+    fail_count <- nrow(start_visit_det_occ)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
+  
+  
+  start_visit_det_dt_occ <- check_date_within(visit_detail, "visit_detail_start_datetime", st[["visit_occurrence"]], "visit_start_date", "<")
+  
+  check <- "Visit detail start date time is on or after the corresponding visit occurrence start date time"
+  if (nrow(start_visit_det_dt_occ) > 0) {
+    fail_count <- nrow(start_visit_det_dt_occ)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
 }
 ```
 
 ```{r visit details end date check}
-
-## visit detail end date
-
-end_visit_det_obs <- check_date_within(visit_detail, "visit_detail_end_date", observation_period, "observation_period_end_date", ">")
-
-check <- "Visit detail end date is on or before the corresponding observation period end date"
-if (nrow(end_visit_det_obs) > 0) {
-  fail_count <- nrow(end_visit_det_obs)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
-}
-
-observation_period$observation_period_end_date_midnight <- observation_period$observation_period_end_date + hours(23) + minutes(59) + seconds(59)
-end_visit_det_dt_obs <- check_date_within(visit_detail, "visit_detail_end_datetime", observation_period, "observation_period_end_date_midnight", ">")
-
-check <- "Visit detail end date time is on or before the corresponding observation period end date"
-if (nrow(end_visit_det_dt_obs) > 0) {
-  fail_count <- nrow(end_visit_det_dt_obs)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
-}
-```
-
-```{r}
-
-end_visit_det_occ <- check_date_within(visit_detail, "visit_detail_end_date", st[["visit_occurrence"]], "visit_end_date", ">")
-
-check <- "Visit detail end date is on or before the corresponding visit occurrence end date"
-if (nrow(end_visit_det_occ) > 0) {
-  fail_count <- nrow(end_visit_det_occ)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
-}
-
-
-st[["visit_occurrence"]]$visit_end_date_midnight <- st[["visit_occurrence"]]$visit_end_date + hours(23) + minutes(59) + seconds(59)
-end_visit_det_dt_occ <- check_date_within(visit_detail, "visit_detail_end_datetime", st[["visit_occurrence"]], "visit_end_date_midnight", ">")
-
-check <- "Visit detail end date time is on or before the corresponding visit occurrence end date time"
-if (nrow(end_visit_det_dt_occ) > 0) {
-  fail_count <- nrow(end_visit_det_dt_occ)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+if(nrow(visit_detail) != 0){
+  ## visit detail end date
+  
+  end_visit_det_obs <- check_date_within(visit_detail, "visit_detail_end_date", observation_period, "observation_period_end_date", ">")
+  
+  check <- "Visit detail end date is on or before the corresponding observation period end date"
+  if (nrow(end_visit_det_obs) > 0) {
+    fail_count <- nrow(end_visit_det_obs)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
+  
+  observation_period$observation_period_end_date_midnight <- observation_period$observation_period_end_date + hours(23) + minutes(59) + seconds(59)
+  end_visit_det_dt_obs <- check_date_within(visit_detail, "visit_detail_end_datetime", observation_period, "observation_period_end_date_midnight", ">")
+  
+  check <- "Visit detail end date time is on or before the corresponding observation period end date"
+  if (nrow(end_visit_det_dt_obs) > 0) {
+    fail_count <- nrow(end_visit_det_dt_obs)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
 }
 ```
 
 ```{r}
-end_visit_det_today <- check_date_within(visit_detail, "visit_detail_end_date", compare_date = Sys.Date(), check_arg = ">")
-
-check <- "Visit detail end date is on or before the current date"
-if (nrow(end_visit_det_today) > 0) {
-  fail_count <- nrow(end_visit_det_today)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+if(nrow(visit_detail) != 0){
+  end_visit_det_occ <- check_date_within(visit_detail, "visit_detail_end_date", st[["visit_occurrence"]], "visit_end_date", ">")
+  
+  check <- "Visit detail end date is on or before the corresponding visit occurrence end date"
+  if (nrow(end_visit_det_occ) > 0) {
+    fail_count <- nrow(end_visit_det_occ)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
+  
+  
+  st[["visit_occurrence"]]$visit_end_date_midnight <- st[["visit_occurrence"]]$visit_end_date + hours(23) + minutes(59) + seconds(59)
+  end_visit_det_dt_occ <- check_date_within(visit_detail, "visit_detail_end_datetime", st[["visit_occurrence"]], "visit_end_date_midnight", ">")
+  
+  check <- "Visit detail end date time is on or before the corresponding visit occurrence end date time"
+  if (nrow(end_visit_det_dt_occ) > 0) {
+    fail_count <- nrow(end_visit_det_dt_occ)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
 }
+```
 
-end_visit_det_dt_today <- check_date_within(visit_detail, "visit_detail_end_datetime", compare_date = Sys.Date(), check_arg = ">")
-
-check <- "Visit detail end date time is on or before the current date"
-if (nrow(end_visit_det_dt_today) > 0) {
-  fail_count <- nrow(end_visit_det_dt_today)
-  fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
-} else {
-  data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+```{r}
+if(nrow(visit_detail) != 0){
+  end_visit_det_today <- check_date_within(visit_detail, "visit_detail_end_date", compare_date = Sys.Date(), check_arg = ">")
+  
+  check <- "Visit detail end date is on or before the current date"
+  if (nrow(end_visit_det_today) > 0) {
+    fail_count <- nrow(end_visit_det_today)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
+  
+  end_visit_det_dt_today <- check_date_within(visit_detail, "visit_detail_end_datetime", compare_date = Sys.Date(), check_arg = ">")
+  
+  check <- "Visit detail end date time is on or before the current date"
+  if (nrow(end_visit_det_dt_today) > 0) {
+    fail_count <- nrow(end_visit_det_dt_today)
+    fail_percentage <- format(round(fail_count / nrow(visit_detail) * 100, 4), scientific = F)
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Fail", fail_count, fail_percentage)
+  } else {
+    data_qual_visit_det <- add_new_check(data_qual_visit_det, nrow(visit_detail), check, "Pass", "0", "0")
+  }
 }
 ```
 
 ```{r print visit details checks}
-
-data_qual_visit_det %>%
-  print_large_kable() %>%
-  column_spec(1, width = "55%") %>%
-  column_spec(2:ncol(glossary), width = "15%")
+if(nrow(visit_detail) != 0){
+  data_qual_visit_det %>%
+    print_large_kable() %>%
+    column_spec(1, width = "55%") %>%
+    column_spec(2:ncol(glossary), width = "15%")
+}
 ```
 
 <br>
 <br>
 
-## Measurements
-The status of the pass/failure of the measurement checks undergo with `r {tolerance}`% tolerance. 
+## Measurement Table
+The status of the pass/failure of the measurement checks undergo with `r {params$measurement_tolerance}`% tolerance. 
+
 ```{r}
 data_qual_measure <- data.frame(matrix(ncol = 4, nrow = 0))
 colnames(data_qual_measure) <- c("Check", "Number of entries", "Status", "Out of range : n(%)")
 ```
 
-
-```{r heart rate}
-
-heart_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("heart_rate", measure_bounds))
-
-abnormal_heart <- check_measure_bounds("heart_rate", measurements, measure_bounds)
-
-check <- glue("Heart rate is within 0-450 bpm level")
-
-if (nrow(abnormal_heart) > 0) {
-  fail_count <- nrow(abnormal_heart)
-  fail_percentage <- format(round(fail_count / nrow(heart_rate) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(heart_rate), check, "Fail", fail_count, fail_percentage)
+```{r measurement checks}
+for(i in 1:nrow(measure_bounds)) {
+  
+  measurement = measurements %>% filter(measurement_concept_id == get_source_concept_id(measure_bounds$Variable[i], measure_bounds))
+  abnormal_measure <- check_measure_bounds(measure_bounds$Variable[i], measurements, measure_bounds)
+  check <- glue(measure_bounds$Name[i]," is within ", measure_bounds$`Lower bound`[i],"-",measure_bounds$`Upper bound`[i]," ", measure_bounds$`Measure unit`[i]," level")
+  
+  if (nrow(abnormal_measure) > 0) {
+    fail_count <- nrow(abnormal_measure)
+    fail_percentage <- format(round(fail_count / nrow(measurement) * 100, 4), scientific = FALSE)
+    if (as.numeric(fail_percentage) > as.numeric(params$measurement_tolerance)) {
+      data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Fail", fail_count, fail_percentage)
+    } else {
+      data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Pass", fail_count, fail_percentage)
+    }
   } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(heart_rate), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(heart_rate), check, "Pass", "0", "0")
+    data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Pass", "0", "0")
 }
-```
-
-
-```{r temperature}
-
-temperature <- measurements %>% filter(measurement_concept_id == get_source_concept_id("temperature", measure_bounds))
-
-abnormal_temp <- check_measure_bounds("temperature", measurements, measure_bounds)
-
-check <- glue("Temperature is within 32-115 °F level")
-
-if (nrow(abnormal_temp) > 0) {
-  fail_count <- nrow(abnormal_temp)
-  fail_percentage <- format(round(fail_count / nrow(temperature) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(temperature), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(temperature), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(temperature), check, "Pass", "0", "0")
-}
-```
-
-```{r repository rate}
-
-respiratory_rate <- measurements %>% filter(measurement_concept_id == get_source_concept_id("respiratory_rate", measure_bounds))
-
-abnormal_rr <- check_measure_bounds("respiratory_rate", measurements, measure_bounds)
-
-check <- glue("Repository rate is within 0-100 bpm level")
-
-if (nrow(abnormal_rr) > 0) {
-  fail_count <- nrow(abnormal_rr)
-  fail_percentage <- format(round(fail_count / nrow(respiratory_rate) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(respiratory_rate), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(respiratory_rate), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(respiratory_rate), check, "Pass", "0", "0")
-}
-```
-
-```{r diastolic blood pressure}
-
-diastolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("diastolic_blood_pressure", measure_bounds))
-
-abnormal_dbp <- check_measure_bounds("diastolic_blood_pressure", measurements, measure_bounds)
-
-check <- glue("Diastolic blood pressure rate is within 0-200 mmHg level")
-
-if (nrow(abnormal_dbp) > 0) {
-  fail_count <- nrow(abnormal_dbp)
-  fail_percentage <- format(round(fail_count / nrow(diastolic_blood_pressure) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(diastolic_blood_pressure), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(diastolic_blood_pressure), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(diastolic_blood_pressure), check, "Pass", "0", "0")
-}
-```
-
-```{r systolic blood pressure}
-
-systolic_blood_pressure <- measurements %>% filter(measurement_concept_id == get_source_concept_id("systolic_blood_pressure", measure_bounds))
-
-abnormal_sbp <- check_measure_bounds("systolic_blood_pressure", measurements, measure_bounds)
-
-check <- glue("Systolic blood pressure is within 0-400 mmHg level")
-
-if (nrow(abnormal_sbp) > 0) {
-  fail_count <- nrow(abnormal_sbp)
-  fail_percentage <- format(round(fail_count / nrow(systolic_blood_pressure) * 100, 4), scientific = FALSE)
-  if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(systolic_blood_pressure), check, "Fail", fail_count, fail_percentage)
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(systolic_blood_pressure), check, "Pass", fail_count, fail_percentage)
-  }
-} else {
-  data_qual_measure <- add_new_check(data_qual_measure, nrow(systolic_blood_pressure), check, "Pass", "0", "0")
-}
+  
+  
+} 
 ```
 
 ```{r print measurement checks}

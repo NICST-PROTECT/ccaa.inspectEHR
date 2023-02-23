@@ -37,31 +37,32 @@ library(ccaa.inspectEHR)
 render_summary_report(
   params = list(
     output = "Summary_report.html",
+    output_path = '#####',
     driver = "PostgreSQL",
     host = "localhost",
     port = 5432,
     dbname = "cca_omop",
     schema = "cca_omop",
-    user = #####,
-    password = #####,
-    local_hospital = "ccaa",
+    user = '#####',
+    password = '#####',
+    local_hospital = "CCAA",
     start_date = '2020-01-01',
-    end_date = '2022-10-31',
-    custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
+    end_date = '2022-10-31'
   )
 )
 
 render_quality_report(
   params = list(
     output = "Data_Quality_report.html",
+    output_path = '#####',
     driver = "PostgreSQL",
     host = "localhost",
     port = 5432,
     dbname = "cca_omop",
     schema = "cca_omop",
-    user = ######,
-    password = ######,
-    local_hospital = "ccaa",
+    user = '######',
+    password = '######',
+    local_hospital = "CCAA",
     start_date = '2020-01-01',
     end_date = '2022-10-31',
     measurement_tolerance = '0.01'

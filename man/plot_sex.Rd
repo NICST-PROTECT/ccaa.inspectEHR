@@ -9,9 +9,6 @@ plot_sex(x)
 \arguments{
 \item{x}{}
 }
-\value{
-
-}
 \description{
 Plot Sex
 }

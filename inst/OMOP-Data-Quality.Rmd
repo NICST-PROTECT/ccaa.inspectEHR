@@ -142,8 +142,11 @@ glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.
 <br>
 
 
-```{r, eval = ccaa, width=100, height=25}
-asis_output("## OMOP Structure at `r {params$local_hospital}`\\n") 
+```{r, eval = ccaa}
+asis_output(paste("## OMOP Structure at", params$local_hospital, "\\n"))
+```
+
+```{r eval=ccaa, width=100, height=25}
 knitr::include_graphics('./OMOP structure.jpg')
 ```
 

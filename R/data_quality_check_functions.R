@@ -5,28 +5,17 @@
 #' @return
 #'
 check_empty <- function(dataset, column, qual_df, check) {
-  
-  # check qual_df is exists, otherwise create it
-  if (!(exists("qual_df") & is.data.frame(qual_df))) {
-    qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
-    colnames(qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
-  }
-  
-  total = nrow(dataset)
-  
+  total <- nrow(dataset)
+
   # data set is filtered according to the fail condition
-  dataset <- dataset %>% 
-    filter(is.na(!!sym(column))) 
-  
-  check_pass_status = ((dataset %>% nrow()) == 0)
-  fail_count = nrow(dataset)
-  
-  qual_df = make_data_quality_df(qual_df,check, check_pass_status,total,fail_count)
-  
-  qual_df %>%
-    print_large_kable() %>%
-    column_spec(1, width = "55%") %>%
-    column_spec(2:ncol(glossary), width = "15%")
+  dataset <- dataset %>%
+    filter(is.na(!!sym(column)))
+
+  check_pass_status <- ((dataset %>% nrow()) == 0)
+  fail_count <- nrow(dataset)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
   qual_df
 }
 
@@ -39,31 +28,20 @@ check_empty <- function(dataset, column, qual_df, check) {
 #' @return
 #'
 check_number_within <- function(dataset, column, min_val, max_val, qual_df, check) {
-  
-  # check qual_df is exists, otherwise create it
-  if (!(exists("qual_df") & is.data.frame(qual_df))) {
-    qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
-    colnames(qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
-  }
+  total <- nrow(dataset)
 
-  total = nrow(dataset)
-  
   dataset[[column]] <- as.numeric(dataset[[column]])
-  dataset <- data.frame(dataset) 
-  
+  dataset <- data.frame(dataset)
+
   # data set is filtered according to the fail condition
-  dataset <- dataset %>% 
-    filter(!!sym(column) < min_val | !!sym(column) > max_val) 
-  
-  check_pass_status = ((dataset %>% nrow()) == 0)
-  fail_count = nrow(dataset)
-  
-  qual_df = make_data_quality_df(qual_df,check, check_pass_status,total,fail_count)
-  
-  qual_df %>%
-    print_large_kable() %>%
-    column_spec(1, width = "55%") %>%
-    column_spec(2:ncol(glossary), width = "15%")
+  dataset <- dataset %>%
+    filter(!!sym(column) < min_val | !!sym(column) > max_val)
+
+  check_pass_status <- ((dataset %>% nrow()) == 0)
+  fail_count <- nrow(dataset)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
   qual_df
 }
 
@@ -76,26 +54,24 @@ check_number_within <- function(dataset, column, min_val, max_val, qual_df, chec
 #' @return
 #'
 find_duplicates <- function(dataset, column, qual_df, check) {
-  
-  # check qual_df is exists, otherwise create it
-  if (!(exists("qual_df") & is.data.frame(qual_df))) {
-    qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
-    colnames(qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
-  }
-  
-  total = nrow(dataset)
-  
+  # # check qual_df is exists, otherwise create it
+  # if (!(exists(qual_df))){
+  #   qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
+  #   colnames(qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
+  # } else {
+  #   qual_df <- get('qual_df')
+  # }
+
+  total <- nrow(dataset)
+
   dataset <- data.frame(dataset)
   duplicates <- dataset[duplicated(dataset[column]), ]
-  
-  check_pass_status = ((duplicates %>% nrow()) ==0)
-  fail_count = nrow(duplicates)
-  
-  qual_df = make_data_quality_df(qual_df,check, check_pass_status,total,fail_count)
-  qual_df %>%
-    print_large_kable() %>%
-    column_spec(1, width = "55%") %>%
-    column_spec(2:ncol(glossary), width = "15%")
+
+  check_pass_status <- ((duplicates %>% nrow()) == 0)
+  fail_count <- nrow(duplicates)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
   qual_df
 }
 
@@ -114,27 +90,16 @@ find_duplicates <- function(dataset, column, qual_df, check) {
 #'
 
 check_id_availability <- function(check_df, check_col, compare_df, compare_col, qual_df, check) {
-  
-  # check qual_df is exists, otherwise create it
-  if (!(exists("qual_df") & is.data.frame(qual_df))) {
-    qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
-    colnames(qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
-  }
-  
-  total = nrow(check_df)
-  
+  total <- nrow(check_df)
+
   unavailable <- check_df[!check_df[[check_col]] %in% compare_df[[compare_col]], ]
-  
-  check_pass_status = ((unavailable %>% nrow()) ==0)
-  fail_count = nrow(unavailable)
-  
-  qual_df = make_data_quality_df(qual_df,check, check_pass_status,total,fail_count)
-  qual_df %>%
-    print_large_kable() %>%
-    column_spec(1, width = "55%") %>%
-    column_spec(2:ncol(glossary), width = "15%")
+
+  check_pass_status <- ((unavailable %>% nrow()) == 0)
+  fail_count <- nrow(unavailable)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
   qual_df
-  
 }
 
 
@@ -152,15 +117,8 @@ check_id_availability <- function(check_df, check_col, compare_df, compare_col, 
 #'
 
 check_date_within <- function(check_df, check_date, compare_df, compare_date, check_arg, qual_df, check) {
-  
-  # check qual_df is exists, otherwise create it
-  if (!(exists("qual_df") & is.data.frame(qual_df))) {
-    qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
-    colnames(qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
-  }
-  
-  total = nrow(check_df)
-  
+  total <- nrow(check_df)
+
   if (missing(compare_df)) {
     compare_df <- data.frame(matrix(ncol = 0, nrow = nrow(check_df)))
     compare_df$compare <- as.Date(compare_date)
@@ -180,16 +138,12 @@ check_date_within <- function(check_df, check_date, compare_df, compare_date, ch
     ) %>%
     filter(eval(parse(text = paste("check", check_arg, "compare"))))
 
-  check_pass_status = ((df %>% nrow()) ==0)
-  fail_count = nrow(df)
-  
-  qual_df = make_data_quality_df(qual_df,check, check_pass_status,total,fail_count)
-  qual_df %>%
-    print_large_kable() %>%
-    column_spec(1, width = "55%") %>%
-    column_spec(2:ncol(glossary), width = "15%")
+  check_pass_status <- ((df %>% nrow()) == 0)
+  fail_count <- nrow(df)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
   qual_df
-  
 }
 
 
@@ -217,7 +171,7 @@ get_source_concept_id <- function(measure_field, mapping_sheet) {
 #'
 #' @return
 
-check_measure_bounds <- function(measure, measurement, bound_df) {
+check_measure_bounds <- function(measure, measurement, bound_df, qual_df, check, tolerance) {
   lower_bound <- bound_df %>%
     filter(Variable == measure) %>%
     pull(`Lower bound`)
@@ -228,8 +182,15 @@ check_measure_bounds <- function(measure, measurement, bound_df) {
     filter(Variable == measure) %>%
     pull(`Concept ID`)
 
+  total <- nrow(measurement)
+
   abnormal_df <- measurement %>% filter((value_as_number < lower_bound | value_as_number > upper_bound) & (measurement_concept_id == concept_id))
-  return(abnormal_df)
+
+  check_pass_status <- ((abnormal_df %>% nrow()) == 0)
+  fail_count <- nrow(abnormal_df)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count, tolerance)
+  qual_df
 }
 
 
@@ -260,14 +221,17 @@ add_new_check <- function(qual_df, total, check, status, fail_count, fail_percen
 #' @param fail_count fail count, if check pass this is zero
 #'
 #' @return
-make_data_quality_df <- function(df,check,check_run_status,total, fail_count=0){
-  check_pass_status = eval(check_pass_status)
-  
-  if(check_pass_status){
-    df <- add_new_check(df, total, check, "Pass", "0", "0")
-  } else{
-    fail_percentage = format(round(fail_count / total * 100, 4), scientific = FALSE)
-    df <- add_new_check(df, total, check, "Fail", fail_count, fail_percentage)
+make_data_quality_df <- function(df, check, check_run_status, total, fail_count = 0, tolerance = "0") {
+  if (check_run_status) {
+    new_row <- c(check, total, "Pass", "0  (0%)")
+  } else {
+    fail_percentage <- format(round(fail_count / total * 100, 4), scientific = FALSE)
+    if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
+      new_row <- c(check, total, "Fail", paste(fail_count, paste0(" (", fail_percentage, "%)")))
+    } else {
+      new_row <- c(check, total, "Pass", paste(fail_count, paste0(" (", fail_percentage, "%)")))
+    }
   }
+  df[nrow(df) + 1, ] <- new_row
   df
 }

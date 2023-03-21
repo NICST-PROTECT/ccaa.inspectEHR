@@ -97,9 +97,9 @@ knitr::opts_chunk$set(
   dpi = 300
 )
 
-if(params$local_hospital == "CCAA"){
+if (params$local_hospital == "CCAA") {
   ccaa <- TRUE
-} else{
+} else {
   ccaa <- FALSE
 }
 ```
@@ -147,7 +147,7 @@ asis_output(paste("## OMOP Structure at", params$local_hospital, "\\n"))
 ```
 
 ```{r eval=ccaa, width=100, height=25}
-knitr::include_graphics('./OMOP structure.jpg')
+knitr::include_graphics("./OMOP structure.jpg")
 ```
 
 <br>
@@ -175,100 +175,134 @@ zero_vals <- clinical_tbls %>%
 ## Person Table
 
 ```{r}
+# make a data table to store data quality checks for person table
+data_qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
+colnames(data_qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
+```
+
+
+```{r}
 # check age is between 0 and 120 in years
-data_qual_df = check_number_within(overview, 'age', 0, 120, 'data_qual_df', "Age is between 0 and 120 in years") 
+data_qual_df <- check_number_within(overview, "age", 0, 120, data_qual_df, "Age is between 0 and 120 in years")
 ```
 
 
 ```{r check duplicate person source values}
-data_qual_df = find_duplicates(st[["person"]], "person_source_value",data_qual_df,"Person source value is not duplicated")
+data_qual_df <- find_duplicates(st[["person"]], "person_source_value", data_qual_df, "Person source value is not duplicated")
 ```
 
 ```{r check all person ids available in other tables}
-data_qual_df = check_id_availability(st[["person"]], "person_id", st[["visit_occurrence"]], "person_id",data_qual_df,"All person IDs have a visit occurrence recorded")
+data_qual_df <- check_id_availability(st[["person"]], "person_id", st[["visit_occurrence"]], "person_id", data_qual_df, "All person IDs have a visit occurrence recorded")
 
-data_qual_df = check_id_availability(st[["person"]], "person_id", observation_period, "person_id",data_qual_df,"All person IDs have an observation period recorded")
+data_qual_df <- check_id_availability(st[["person"]], "person_id", observation_period, "person_id", data_qual_df, "All person IDs have an observation period recorded")
 
-data_qual_df = check_id_availability(st[["person"]], "person_id", visit_detail, "person_id",data_qual_df,"All person IDs have an visit detail recorded")
-
+data_qual_df <- check_id_availability(st[["person"]], "person_id", visit_detail, "person_id", data_qual_df, "All person IDs have an visit detail recorded")
 ```
 
 ```{r check year of birth}
-
 st[["person"]]$date_year <- as.Date(ISOdate(st[["person"]]$year_of_birth, 1, 1))
-data_qual_df = check_date_within(st[["person"]], "year_of_birth", observation_period, "observation_period_start_date", ">=",data_qual_df,"Year of birth is the same or earlier than the observation start date")
+data_qual_df <- check_date_within(st[["person"]], "year_of_birth", observation_period, "observation_period_start_date", ">=", data_qual_df, "Year of birth is the same or earlier than the observation start date")
 
-data_qual_df = check_date_within(st[["person"]], "year_of_birth", compare_date = Sys.Date(), 
-                                 check_arg = ">=",
-                                 qual_df = data_qual_df,
-                                 check="Year of birth is the same or earlier than the current date")
+data_qual_df <- check_date_within(st[["person"]], "year_of_birth",
+  compare_date = Sys.Date(),
+  check_arg = ">=",
+  qual_df = data_qual_df,
+  check = "Year of birth is the same or earlier than the current date"
+)
+```
 
+```{r print person table checks}
+data_qual_df %>%
+  print_large_kable() %>%
+  column_spec(1, width = "55%") %>%
+  column_spec(2:ncol(glossary), width = "15%")
 ```
 
 <br>
 <br>
 
 ## Observation Period Table
-
+```{r}
+# make a data table to store data quality checks for observation period
+data_qual_Obs_p <- data.frame(matrix(ncol = 4, nrow = 0))
+colnames(data_qual_Obs_p) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
+```
 
 ```{r check uniqueness of ID varibales}
 # uniquness of observation_period_id over the person_id, start_date and end_date
-data_qual_Obs_p = find_duplicates(observation_period, 
-                                  c("observation_period_id", "person_id", "observation_period_start_date", "observation_period_end_date"),
-                                  'data_qual_Obs_p',
-                                  "Observation period ID is unique based on person ID, observation start date and end date")
+data_qual_Obs_p <- find_duplicates(
+  observation_period,
+  c("observation_period_id", "person_id", "observation_period_start_date", "observation_period_end_date"),
+  data_qual_Obs_p,
+  "Observation period ID is unique based on person ID, observation start date and end date"
+)
 ```
 
 ```{r obervation period start date & enad date check}
+data_qual_Obs_p <- check_date_within(
+  check_df = observation_period,
+  check_date = "observation_period_start_date",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_Obs_p,
+  check = "Observation period start date occurs before the current date"
+)
 
-data_qual_Obs_p = check_date_within(check_df=observation_period, 
-                                    check_date="observation_period_start_date", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df = data_qual_Obs_p,
-                                    check="Observation period start date occurs before the current date")
+data_qual_Obs_p <- check_date_within(
+  check_df = observation_period,
+  check_date = "observation_period_start_date",
+  compare_df = observation_period,
+  compare_date = "observation_period_end_date",
+  check_arg = ">=",
+  qual_df = data_qual_Obs_p,
+  check = "Observation period end date is after the observation period start date"
+)
+```
 
-data_qual_Obs_p = check_date_within(check_df = observation_period, 
-                                    check_date = "observation_period_start_date", 
-                                    compare_df = observation_period, 
-                                    compare_date="observation_period_end_date", 
-                                    check_arg = ">=",
-                                    qual_df=data_qual_df,
-                                    check="Observation period end date is after the observation period start date")
+```{r print observation table checks}
+data_qual_Obs_p %>%
+  print_large_kable() %>%
+  column_spec(1, width = "55%") %>%
+  column_spec(2:ncol(glossary), width = "15%")
 ```
 
 <br>
 <br>
 
 ## Visit Occurrence Table
-
 ```{r}
+# make a data table to store data quality checks for visit occurrence
 data_qual_visit_ch <- data.frame(matrix(ncol = 4, nrow = 0))
 colnames(data_qual_visit_ch) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
 ```
 
+
 ```{r}
-data_qual_visit_ch = check_empty(overview, 'visit_occurrence_id', 'data_qual_visit_ch', "All the visit occurrence IDs are populated")
+data_qual_visit_ch <- check_empty(overview, "visit_occurrence_id", data_qual_visit_ch, "All the visit occurrence IDs are populated")
 ```
 
 ```{r}
 # uniquness of visit_occurrence_id over the person_id, start_date and end_date
-data_qual_visit_ch = find_duplicates(st[["visit_occurrence"]], 
-                                  c("visit_occurrence_id", "person_id", "visit_start_date", "visit_end_date"),
-                                  data_qual_visit_ch,
-                                  "Visit occurrence ID is unique based on person ID, visit start date and end date")
+data_qual_visit_ch <- find_duplicates(
+  st[["visit_occurrence"]],
+  c("visit_occurrence_id", "person_id", "visit_start_date", "visit_end_date"),
+  data_qual_visit_ch,
+  "Visit occurrence ID is unique based on person ID, visit start date and end date"
+)
 ```
 
 ```{r check negative LOS}
 not_nan_visit_occurrence_start_end <- st[["visit_occurrence"]] %>% filter((!is.na(visit_start_date) & !is.na(visit_end_date)))
 
-data_qual_visit_ch = check_date_within(check_df = not_nan_visit_occurrence_start_end, 
-                                    check_date = "visit_start_date", 
-                                    compare_df = not_nan_visit_occurrence_start_end, 
-                                    compare_date="visit_end_date", 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit start date is on or before the corresponding visit end date")
+data_qual_visit_ch <- check_date_within(
+  check_df = not_nan_visit_occurrence_start_end,
+  check_date = "visit_start_date",
+  compare_df = not_nan_visit_occurrence_start_end,
+  compare_date = "visit_end_date",
+  check_arg = ">",
+  qual_df = data_qual_visit_ch,
+  check = "Visit start date is on or before the corresponding visit end date"
+)
 ```
 
 ```{r}
@@ -276,120 +310,146 @@ data_qual_visit_ch = check_date_within(check_df = not_nan_visit_occurrence_start
 
 st[["visit_occurrence"]] <- st[["visit_occurrence"]] %>% mutate(visit_start_date_from_dt = format(as.Date(visit_start_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_start_date", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date="visit_start_date_from_dt", 
-                                    check_arg = "!=",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Date of visit start datetime matches with visit start date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_start_date",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_start_date_from_dt",
+  check_arg = "!=",
+  qual_df = data_qual_visit_ch,
+  check = "Date of visit start datetime matches with visit start date"
+)
 
 
 # check date of visit occurrence end datetime mach with visit end date
 
 st[["visit_occurrence"]] <- st[["visit_occurrence"]] %>% mutate(visit_end_date_from_dt = format(as.Date(visit_end_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_end_date", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date="visit_end_date_from_dt", 
-                                    check_arg = "!=",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Date of visit end datetime matches with visit end date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_end_date",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_end_date_from_dt",
+  check_arg = "!=",
+  qual_df = data_qual_visit_ch,
+  check = "Date of visit end datetime matches with visit end date"
+)
 ```
 
 
 
 ```{r visit occurrence start date & enad date check}
-
 ## visit start date
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_start_date", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_start_date", 
-                                    check_arg = "<",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit start date is on or after the corresponding observation period start date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_start_date",
+  compare_df = observation_period,
+  compare_date = "observation_period_start_date",
+  check_arg = "<",
+  qual_df = data_qual_visit_ch,
+  check = "Visit start date is on or after the corresponding observation period start date"
+)
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_start_datetime", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_start_date", 
-                                    check_arg = "<",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit start date time is on or after the corresponding observation period start date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_start_datetime",
+  compare_df = observation_period,
+  compare_date = "observation_period_start_date",
+  check_arg = "<",
+  qual_df = data_qual_visit_ch,
+  check = "Visit start date time is on or after the corresponding observation period start date"
+)
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_start_date", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit start date is on or before the current date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_start_date",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_visit_ch,
+  check = "Visit start date is on or before the current date"
+)
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_end_datetime", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit start date time is on or before the current date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_end_datetime",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_visit_ch,
+  check = "Visit start date time is on or before the current date"
+)
 
 ## visit end date
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_end_date", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_end_date", 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit end date is on or before the corresponding observation period end date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_end_date",
+  compare_df = observation_period,
+  compare_date = "observation_period_end_date",
+  check_arg = ">",
+  qual_df = data_qual_visit_ch,
+  check = "Visit end date is on or before the corresponding observation period end date"
+)
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_end_datetime", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_end_date", 
-                                    check_arg = "<",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit end date time is on or before the corresponding observation period end date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_end_datetime",
+  compare_df = observation_period,
+  compare_date = "observation_period_end_date",
+  check_arg = "<",
+  qual_df = data_qual_visit_ch,
+  check = "Visit end date time is on or before the corresponding observation period end date"
+)
 
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_end_date", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit end date is on or before the current date")
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_end_date",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_visit_ch,
+  check = "Visit end date is on or before the current date"
+)
 
-data_qual_visit_ch = check_date_within(check_df = st[["visit_occurrence"]], 
-                                    check_date = "visit_end_datetime", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_ch,
-                                    check="Visit end date time is on or before the current date")
-
+data_qual_visit_ch <- check_date_within(
+  check_df = st[["visit_occurrence"]],
+  check_date = "visit_end_datetime",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_visit_ch,
+  check = "Visit end date time is on or before the current date"
+)
 ```
 
-```{r print visit Characteristics checks}
-data_qual_visit_ch 
+```{r print visit occurrence checks}
+data_qual_visit_ch %>%
+  print_large_kable() %>%
+  column_spec(1, width = "55%") %>%
+  column_spec(2:ncol(glossary), width = "15%")
 ```
 
 <br>
 <br>
 
 ## Visit Detail Table
-
+```{r}
+# make a data table to store data quality checks for visit details
+data_qual_visit_det <- data.frame(matrix(ncol = 4, nrow = 0))
+colnames(data_qual_visit_det) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
+```
 
 ```{r}
-if(nrow(visit_detail) == 0){
-asis_output("The Visit Detail table is empty")
+if (nrow(visit_detail) == 0) {
+  asis_output("The Visit Detail table is empty")
 }
 ```
 
 
 ```{r}
-data_qual_visit_det = find_duplicates(visit_detail, 
-                                  c("visit_detail_id", "person_id", "visit_detail_start_date", "visit_detail_end_date"),
-                                  'data_qual_visit_det',
-                                  "Visit detail ID is unique based on person ID, visit detail start date and end date")
-
+data_qual_visit_det <- find_duplicates(
+  visit_detail,
+  c("visit_detail_id", "person_id", "visit_detail_start_date", "visit_detail_end_date"),
+  data_qual_visit_det,
+  "Visit detail ID is unique based on person ID, visit detail start date and end date"
+)
 ```
 
 ```{r}
@@ -397,107 +457,129 @@ visit_detail <- visit_detail %>% mutate(visit_detail_start_date_from_dt = format
 
 visit_detail <- visit_detail %>% mutate(visit_detail_end_date_from_dt = format(as.Date(visit_detail_end_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_start_date", 
-                                    compare_df = visit_detail, 
-                                    compare_date = "visit_detail_start_date_from_dt", 
-                                    check_arg = "!=",
-                                    qual_df = data_qual_visit_det,
-                                    check="Date of visit detail start datetime matches with visit detail start date")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_start_date",
+  compare_df = visit_detail,
+  compare_date = "visit_detail_start_date_from_dt",
+  check_arg = "!=",
+  qual_df = data_qual_visit_det,
+  check = "Date of visit detail start datetime matches with visit detail start date"
+)
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_end_date", 
-                                    compare_df = visit_detail, 
-                                    compare_date = "visit_detail_end_date_from_dt", 
-                                    check_arg = "!=",
-                                    qual_df = data_qual_visit_det,
-                                    check="Date of visit detail end datetime matches with visit detail end date")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_end_date",
+  compare_df = visit_detail,
+  compare_date = "visit_detail_end_date_from_dt",
+  check_arg = "!=",
+  qual_df = data_qual_visit_det,
+  check = "Date of visit detail end datetime matches with visit detail end date"
+)
 ```
 
 ```{r visit details start date check}
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_start_datetime",
+  compare_df = observation_period,
+  compare_date = "observation_period_start_date",
+  check_arg = "<",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail start date time is on or after the corresponding observation period start date"
+)
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_start_datetime", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_start_date", 
-                                    check_arg = "<",
-                                    qual_df = data_qual_visit_det,
-                                    check="Visit detail start date time is on or after the corresponding observation period start date")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_start_date",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_start_date",
+  check_arg = "<",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail start date is on or after the corresponding visit occurrence start date"
+)
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_start_date", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date = "visit_start_date", 
-                                    check_arg = "<",
-                                    qual_df = data_qual_visit_det,
-                                    check="Visit detail start date is on or after the corresponding visit occurrence start date")
-
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_start_datetime", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date = "visit_start_date", 
-                                    check_arg = "<",
-                                    qual_df = data_qual_visit_det,
-                                    check="Visit detail start date time is on or after the corresponding visit occurrence start date time")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_start_datetime",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_start_date",
+  check_arg = "<",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail start date time is on or after the corresponding visit occurrence start date time"
+)
 ```
 
 ```{r visit details end date check}
-
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_end_date", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_end_date", 
-                                    check_arg = ">",
-                                    qual_df = data_qual_visit_det,
-                                    check="Visit detail end date is on or before the corresponding observation period end date")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_end_date",
+  compare_df = observation_period,
+  compare_date = "observation_period_end_date",
+  check_arg = ">",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail end date is on or before the corresponding observation period end date"
+)
 
 
 visit_detail <- visit_detail %>% mutate(visit_detail_end_date_from_dt = format(as.Date(visit_detail_end_datetime, format = "%Y-%m-%d %HH:%mm:%ss"), "%Y-%m-%d"))
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_end_date_from_dt", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_end_date", 
-                                    check_arg = ">",
-                                    qual_df = data_qual_visit_det,
-                                    check="Visit detail end date time is on or before the corresponding observation period end date")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_end_date_from_dt",
+  compare_df = observation_period,
+  compare_date = "observation_period_end_date",
+  check_arg = ">",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail end date time is on or before the corresponding observation period end date"
+)
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_end_date", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date = "visit_end_date", 
-                                    check_arg = ">",
-                                    qual_df = data_qual_visit_det,
-                                    check="Visit detail end date is on or before the corresponding visit occurrence end date")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_end_date",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_end_date",
+  check_arg = ">",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail end date is on or before the corresponding visit occurrence end date"
+)
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_end_date_from_dt", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date = "visit_end_date", 
-                                    check_arg = ">",
-                                    qual_df = data_qual_visit_det,
-                                    check="Visit detail end date time is on or before the corresponding visit occurrence end date time")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_end_date_from_dt",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_end_date",
+  check_arg = ">",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail end date time is on or before the corresponding visit occurrence end date time"
+)
 ```
 
 ```{r}
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_end_date",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail end date is on or before the current date"
+)
 
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_end_date", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_det,
-                                    check="Visit detail end date is on or before the current date")
-
-data_qual_visit_det = check_date_within(check_df = visit_detail, 
-                                    check_date = "visit_detail_end_datetime", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df=data_qual_visit_det,
-                                    check="Visit detail end date time is on or before the current date")
+data_qual_visit_det <- check_date_within(
+  check_df = visit_detail,
+  check_date = "visit_detail_end_datetime",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_visit_det,
+  check = "Visit detail end date time is on or before the current date"
+)
 ```
 
 ```{r print visit details checks}
-data_qual_visit_det
+data_qual_visit_det %>%
+  print_large_kable() %>%
+  column_spec(1, width = "55%") %>%
+  column_spec(2:ncol(glossary), width = "15%")
 ```
 
 <br>
@@ -507,31 +589,17 @@ data_qual_visit_det
 The status of the pass/failure of the measurement checks undergo with `r {params$measurement_tolerance}`% tolerance. 
 
 ```{r}
+# make a data table to store data quality checks for measurement table
 data_qual_measure <- data.frame(matrix(ncol = 4, nrow = 0))
 colnames(data_qual_measure) <- c("Check", "Number of entries", "Status", "Out of range : n(%)")
 ```
 
 ```{r measurement checks}
-for(i in 1:nrow(measure_bounds)) {
-  
-  measurement = measurements %>% filter(measurement_concept_id == get_source_concept_id(measure_bounds$Variable[i], measure_bounds))
-  abnormal_measure <- check_measure_bounds(measure_bounds$Variable[i], measurements, measure_bounds)
-  check <- glue(measure_bounds$Name[i]," is within ", measure_bounds$`Lower bound`[i],"-",measure_bounds$`Upper bound`[i]," ", measure_bounds$`Measure unit`[i]," level")
-  
-  if (nrow(abnormal_measure) > 0) {
-    fail_count <- nrow(abnormal_measure)
-    fail_percentage <- format(round(fail_count / nrow(measurement) * 100, 4), scientific = FALSE)
-    if (as.numeric(fail_percentage) > as.numeric(params$measurement_tolerance)) {
-      data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Fail", fail_count, fail_percentage)
-    } else {
-      data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Pass", fail_count, fail_percentage)
-    }
-  } else {
-    data_qual_measure <- add_new_check(data_qual_measure, nrow(measurement), check, "Pass", "0", "0")
+for (i in 1:nrow(measure_bounds)) {
+  measurement <- measurements %>% filter(measurement_concept_id == get_source_concept_id(measure_bounds$Variable[i], measure_bounds))
+  check <- glue(measure_bounds$Name[i], " is within ", measure_bounds$`Lower bound`[i], "-", measure_bounds$`Upper bound`[i], " ", measure_bounds$`Measure unit`[i], " level")
+  abnormal_measure <- check_measure_bounds(measure_bounds$Variable[i], measurements, measure_bounds, data_qual_measure, check, params$measurement_tolerance)
 }
-  
-  
-} 
 ```
 
 ```{r print measurement checks}
@@ -550,64 +618,77 @@ data_qual_measure %>%
 ```{r death year with birth year}
 death_year <- st[["death"]] %>% mutate(death_year = format(as.Date(death_date, format = "%d/%m/%Y"), "%Y"))
 
-data_qual_death = check_date_within(check_df = death_year, 
-                                    check_date = "death_year", 
-                                    compare_df = st[["person"]], 
-                                    compare_date = "year_of_birth", 
-                                    check_arg = "<",
-                                    qual_df = 'data_qual_death',
-                                    check="Year of death is on or after the year of birth")
+data_qual_death <- check_date_within(
+  check_df = death_year,
+  check_date = "death_year",
+  compare_df = st[["person"]],
+  compare_date = "year_of_birth",
+  check_arg = "<",
+  qual_df = "data_qual_death",
+  check = "Year of death is on or after the year of birth"
+)
 ```
 
 ```{r death date time with observation period}
-data_qual_death = check_date_within(check_df = st[["death"]], 
-                                    check_date = "death_date", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_start_date", 
-                                    check_arg = "<",
-                                    qual_df = data_qual_death,
-                                    check="Death date is on or after the observation period start date")
+data_qual_death <- check_date_within(
+  check_df = st[["death"]],
+  check_date = "death_date",
+  compare_df = observation_period,
+  compare_date = "observation_period_start_date",
+  check_arg = "<",
+  qual_df = data_qual_death,
+  check = "Death date is on or after the observation period start date"
+)
 
-data_qual_death = check_date_within(check_df = st[["death"]], 
-                                    check_date = "death_date", 
-                                    compare_df = observation_period, 
-                                    compare_date = "observation_period_end_date", 
-                                    check_arg = "!=",
-                                    qual_df = data_qual_death,
-                                    check="Death date is on the observation period end date")
+data_qual_death <- check_date_within(
+  check_df = st[["death"]],
+  check_date = "death_date",
+  compare_df = observation_period,
+  compare_date = "observation_period_end_date",
+  check_arg = "!=",
+  qual_df = data_qual_death,
+  check = "Death date is on the observation period end date"
+)
 ```
 
 ```{r death date time with visit occurrence}
-data_qual_death = check_date_within(check_df = st[["death"]], 
-                                    check_date = "death_date", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date = "visit_start_date", 
-                                    check_arg = "<",
-                                    qual_df = data_qual_death,
-                                    check="Death date is on or after the visit start date")
+data_qual_death <- check_date_within(
+  check_df = st[["death"]],
+  check_date = "death_date",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_start_date",
+  check_arg = "<",
+  qual_df = data_qual_death,
+  check = "Death date is on or after the visit start date"
+)
 
-data_qual_death = check_date_within(check_df = st[["death"]], 
-                                    check_date = "death_datetime", 
-                                    compare_df = st[["visit_occurrence"]], 
-                                    compare_date = "visit_start_datetime", 
-                                    check_arg = "<",
-                                    qual_df = data_qual_death,
-                                    check="Death date time is on or after the visit start date time")
-
+data_qual_death <- check_date_within(
+  check_df = st[["death"]],
+  check_date = "death_datetime",
+  compare_df = st[["visit_occurrence"]],
+  compare_date = "visit_start_datetime",
+  check_arg = "<",
+  qual_df = data_qual_death,
+  check = "Death date time is on or after the visit start date time"
+)
 ```
 
 ```{r death date with current date}
-
-data_qual_death = check_date_within(check_df = st[["death"]], 
-                                    check_date = "death_date", 
-                                    compare_date = Sys.Date(), 
-                                    check_arg = ">",
-                                    qual_df=data_qual_death,
-                                    check="Death date is on or before today")
+data_qual_death <- check_date_within(
+  check_df = st[["death"]],
+  check_date = "death_date",
+  compare_date = Sys.Date(),
+  check_arg = ">",
+  qual_df = data_qual_death,
+  check = "Death date is on or before today"
+)
 ```
 
 ```{r print death checks}
-data_qual_death
+data_qual_death %>%
+  print_large_kable() %>%
+  column_spec(1, width = "55%") %>%
+  column_spec(2:ncol(glossary), width = "15%")
 ```
 
 

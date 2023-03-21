@@ -107,7 +107,6 @@ if (params$local_hospital == "CCAA") {
 
 
 ```{r prepare-st}
-
 ctn <- setup_ctn(params)
 
 period_person_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
@@ -598,7 +597,7 @@ colnames(data_qual_measure) <- c("Check", "Number of entries", "Status", "Out of
 for (i in 1:nrow(measure_bounds)) {
   measurement <- measurements %>% filter(measurement_concept_id == get_source_concept_id(measure_bounds$Variable[i], measure_bounds))
   check <- glue(measure_bounds$Name[i], " is within ", measure_bounds$`Lower bound`[i], "-", measure_bounds$`Upper bound`[i], " ", measure_bounds$`Measure unit`[i], " level")
-  abnormal_measure <- check_measure_bounds(measure_bounds$Variable[i], measurements, measure_bounds, data_qual_measure, check, params$measurement_tolerance)
+  data_qual_measure <- check_measure_bounds(measure_bounds$Variable[i], measurements, measure_bounds, data_qual_measure, check, params$measurement_tolerance)
 }
 ```
 
@@ -614,6 +613,11 @@ data_qual_measure %>%
 <br>
 
 ## Death Table
+```{r}
+# make a data table to store data quality checks for death table
+data_qual_death <- data.frame(matrix(ncol = 4, nrow = 0))
+colnames(data_qual_death) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
+```
 
 ```{r death year with birth year}
 death_year <- st[["death"]] %>% mutate(death_year = format(as.Date(death_date, format = "%d/%m/%Y"), "%Y"))
@@ -624,7 +628,7 @@ data_qual_death <- check_date_within(
   compare_df = st[["person"]],
   compare_date = "year_of_birth",
   check_arg = "<",
-  qual_df = "data_qual_death",
+  qual_df = data_qual_death,
   check = "Year of death is on or after the year of birth"
 )
 ```

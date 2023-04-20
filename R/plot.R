@@ -1,4 +1,4 @@
-#' Plot Age
+#' Plot Person Characteristics
 #'
 #' @param x
 #'
@@ -10,96 +10,21 @@
 #' @return
 #'
 #' @examples
-plot_age <- function(x) {
+plot_person_char <- function(x,char,title) {
   x %>%
-    mutate(age = cut(age, c(18, seq(20, 140, by = 5)))) %>%
-    group_by(age) %>%
+    group_by(get(char)) %>%
     tally() %>%
-    ggplot(aes(y = age)) +
+    ggplot(aes(y = `get(char)`)) +
     geom_point(aes(x = n)) +
     geom_segment(aes(
       x = 0,
       xend = n,
-      yend = age
+      yend = `get(char)`
     )) +
     theme_d() +
     labs(y = "", x = "Count") +
     theme(axis.title.y = element_blank()) +
-    ggtitle("Age distribution")
-}
-
-#' Plot Sex
-#'
-#'
-#' @param x
-#'
-#' @return
-#'
-#' @examples
-plot_sex <- function(x) {
-  x %>%
-    group_by(gender_concept_id) %>%
-    tally() %>%
-    ggplot(aes(y = gender_concept_id)) +
-    geom_point(aes(x = n)) +
-    geom_segment(aes(
-      x = 0,
-      xend = n,
-      yend = gender_concept_id
-    )) +
-    labs(x = "Count", y = "") +
-    theme_d() +
-    theme(axis.title.y = element_blank()) +
-    ggtitle("Sex distribution")
-}
-
-
-#' Plot Ethnicity
-#'
-#'
-#' @param x
-#'
-#' @importFrom dplyr mutate if_else group_by tally
-#' @importFrom forcats fct_infreq fct_rev
-#' @importFrom ggplot2 ggplot aes geom_point geom_segment labs theme ggtitle
-#'
-#' @return
-#'
-#' @examples
-plot_ethnicity <- function(x) {
-  x %>%
-    mutate(
-      race_concept_id = gsub(
-        " - England and Wales ethnic category 2011 census",
-        "",
-        race_concept_id
-      )
-    ) %>%
-    mutate(
-      race_concept_id = if_else(
-        nchar(race_concept_id) >= 30,
-        paste0(stringr::str_sub(race_concept_id, 1, 29), "..."),
-        race_concept_id
-      )
-    ) %>%
-    mutate(
-      race_concept_id = forcats::fct_rev(
-        forcats::fct_infreq(race_concept_id)
-      )
-    ) %>%
-    group_by(race_concept_id) %>%
-    tally() %>%
-    ggplot(aes(y = race_concept_id)) +
-    geom_point(aes(x = n)) +
-    geom_segment(aes(
-      x = 0,
-      xend = n,
-      yend = race_concept_id
-    )) +
-    labs(x = "Count", y = "") +
-    theme_d() +
-    theme(axis.title.y = element_blank()) +
-    ggtitle("Ethnicity distribution")
+    ggtitle(title)
 }
 
 #' Plot Visit Profile

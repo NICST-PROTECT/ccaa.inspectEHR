@@ -265,11 +265,15 @@ summary %>%
 if ("person" %in% zero_vals) {
   cat("There is no data in the person table")
 } else {
-  age_plot <- plot_age(overview) %>% custom_theme(custom_colors)
+  age_plot <- plot_person_char(overview %>% 
+                                 mutate(age = cut(age, c(18, seq(20, 140, by = 5)))), "age", "Age distribution") %>% custom_theme(custom_colors)
   check_age <- min(overview$age, na.rm = TRUE) >= 18
 
-  sex_plot <- plot_sex(st[["person"]]) %>% custom_theme(custom_colors)
-  ethnic_plot <- plot_ethnicity(st[["person"]]) %>% custom_theme(custom_colors)
+  sex_plot <- plot_person_char(st[["person"]], "gender_concept_id","Sex distribution") %>% custom_theme(custom_colors)
+  ethnic_plot <- plot_person_char(st[["person"]] %>%
+    mutate(race_concept_id = gsub(" - England and Wales ethnic category 2011 census","",race_concept_id)) %>%
+    mutate(race_concept_id = if_else(nchar(race_concept_id) >= 30,paste0(stringr::str_sub(race_concept_id, 1, 29), "..."),race_concept_id)) %>%
+    mutate(race_concept_id = forcats::fct_rev(forcats::fct_infreq(race_concept_id))), "race_concept_id", "Ethnicity distribution") %>% custom_theme(custom_colors)
 
   age_plot + sex_plot + ethnic_plot & theme(
     axis.title = element_text(size = 6),

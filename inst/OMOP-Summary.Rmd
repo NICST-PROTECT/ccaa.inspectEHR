@@ -97,16 +97,15 @@ knitr::opts_chunk$set(
   dpi = 300
 )
 
-if(params$local_hospital == "CCAA"){
+if (params$local_hospital == "CCAA") {
   ccaa <- TRUE
-} else{
+} else {
   ccaa <- FALSE
 }
 ```
 
 
 ```{r prepare-st}
-
 # Connect to the database.
 # Read core tables and prepare overview.
 ctn <- setup_ctn(params)
@@ -180,7 +179,7 @@ drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspec
 
 glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.inspectEHR"))
 
-custom_colors = c("#379481","#4CA1CB","#3AB8EE","#569FB2")
+custom_colors <- c("#379481", "#4CA1CB", "#3AB8EE", "#569FB2")
 ```
 
 <br></br>
@@ -191,7 +190,7 @@ asis_output(paste("## OMOP Structure at", params$local_hospital, "\\n"))
 ```
 
 ```{r eval=ccaa, width=100, height=25}
-knitr::include_graphics('./OMOP structure.jpg')
+knitr::include_graphics("./OMOP structure.jpg")
 ```
 
 
@@ -266,15 +265,21 @@ summary %>%
 if ("person" %in% zero_vals) {
   cat("There is no data in the person table")
 } else {
-  age_plot <- plot_age(overview) %>% custom_theme(custom_colors)
+  age_plot <- plot_person_char(overview %>% 
+                                 mutate(age = cut(age, c(18, seq(20, 140, by = 5)))), "age", "Age distribution") %>% custom_theme(custom_colors)
   check_age <- min(overview$age, na.rm = TRUE) >= 18
 
-  sex_plot <- plot_sex(st[["person"]]) %>% custom_theme(custom_colors)
-  ethnic_plot <- plot_ethnicity(st[["person"]]) %>% custom_theme(custom_colors)
+  sex_plot <- plot_person_char(st[["person"]], "gender_concept_id","Sex distribution") %>% custom_theme(custom_colors)
+  ethnic_plot <- plot_person_char(st[["person"]] %>%
+    mutate(race_concept_id = gsub(" - England and Wales ethnic category 2011 census","",race_concept_id)) %>%
+    mutate(race_concept_id = if_else(nchar(race_concept_id) >= 30,paste0(stringr::str_sub(race_concept_id, 1, 29), "..."),race_concept_id)) %>%
+    mutate(race_concept_id = forcats::fct_rev(forcats::fct_infreq(race_concept_id))), "race_concept_id", "Ethnicity distribution") %>% custom_theme(custom_colors)
 
-  age_plot + sex_plot + ethnic_plot & theme(axis.title = element_text(size = 6),
-                                            axis.text = element_text(size = 6),
-        plot.title = element_text(size = 12))
+  age_plot + sex_plot + ethnic_plot & theme(
+    axis.title = element_text(size = 6),
+    axis.text = element_text(size = 6),
+    plot.title = element_text(size = 12)
+  )
 }
 ```
 
@@ -298,24 +303,28 @@ if (!("visit_occurrence" %in% zero_vals)) {
 ```
 
 ```{r visit-profile}
-plot_visit_profile(st[["visit_occurrence"]], params$start_date, params$end_date,
-                   custom_colors) %>% custom_theme(custom_colors)
+plot_visit_profile(
+  st[["visit_occurrence"]], params$start_date, params$end_date,
+  custom_colors
+) %>% custom_theme(custom_colors)
 ```
 
 ```{r admission-from1}
 st[["visit_occurrence"]] %>%
-  select("Source of admission" = any_of(c("admitted_from_concept_id", "admitting_source_concept_id"))) %>% 
+  select("Source of admission" = any_of(c("admitted_from_concept_id", "admitting_source_concept_id"))) %>%
   group_by(`Source of admission`) %>%
   tally(name = "Number of admissions") %>%
-  arrange(desc(`Number of admissions`)) %>% 
+  arrange(desc(`Number of admissions`)) %>%
   print_large_kable()
 ```
 
 ```{r admission-from2}
 admission_from_plot <- st[["visit_occurrence"]] %>%
-  rename(any_of(c(admitted_from_concept_id = "admitting_source_concept_id"))) %>% 
-  mutate(admitted_from_concept_id =
-           forcats::fct_infreq(as.character(admitted_from_concept_id))) %>%
+  rename(any_of(c(admitted_from_concept_id = "admitting_source_concept_id"))) %>%
+  mutate(
+    admitted_from_concept_id =
+      forcats::fct_infreq(as.character(admitted_from_concept_id))
+  ) %>%
   group_by(admitted_from_concept_id) %>%
   tally() %>%
   check_zero_tally(n) %>%
@@ -326,12 +335,13 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
     yend = n,
     xend = admitted_from_concept_id
   )) +
-
   scale_colour_manual(values = custom_colors, drop = FALSE) +
   theme_classic() +
-  theme(axis.title = element_text(size = 6),
-        axis.text = element_text(size = 6),
-        legend.position = "none") +
+  theme(
+    axis.title = element_text(size = 6),
+    axis.text = element_text(size = 6),
+    legend.position = "none"
+  ) +
   labs(y = "Count", x = "") +
   theme_d() +
   coord_flip() +
@@ -340,16 +350,16 @@ admission_from_plot <- st[["visit_occurrence"]] %>%
 
 ```{r discharge-to1}
 st[["visit_occurrence"]] %>%
-  select("Discharge destination" = any_of(c("discharged_to_concept_id", "discharge_to_concept_id"))) %>% 
+  select("Discharge destination" = any_of(c("discharged_to_concept_id", "discharge_to_concept_id"))) %>%
   group_by(`Discharge destination`) %>%
   tally(name = "Number of admissions") %>%
-  arrange(desc(`Number of admissions`)) %>% 
+  arrange(desc(`Number of admissions`)) %>%
   print_large_kable()
 ```
 
 ```{r discharge-to2}
 discharge_to_plot <- st[["visit_occurrence"]] %>%
-  rename(any_of(c(discharged_to_concept_id = "discharge_to_concept_id"))) %>% 
+  rename(any_of(c(discharged_to_concept_id = "discharge_to_concept_id"))) %>%
   mutate(discharged_to_concept_id = forcats::fct_infreq(as.character(discharged_to_concept_id))) %>%
   group_by(discharged_to_concept_id) %>%
   tally() %>%
@@ -361,12 +371,13 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
     yend = n,
     xend = discharged_to_concept_id
   )) +
-
   scale_colour_manual(values = custom_colors, drop = FALSE) +
   theme_classic() +
-  theme(axis.title = element_text(size = 6),
-        axis.text = element_text(size = 6),
-        legend.position = "none") +
+  theme(
+    axis.title = element_text(size = 6),
+    axis.text = element_text(size = 6),
+    legend.position = "none"
+  ) +
   labs(y = "Count", x = "") +
   theme_d() +
   coord_flip() +
@@ -377,9 +388,11 @@ discharge_to_plot <- st[["visit_occurrence"]] %>%
 admission_from_plot %>%
   custom_theme(custom_colors) + discharge_to_plot %>%
   custom_theme(custom_colors) +
-  theme(axis.title = element_text(size = 6),
-        axis.text = element_text(size = 6),
-        plot.title = element_text(size = 12))
+  theme(
+    axis.title = element_text(size = 6),
+    axis.text = element_text(size = 6),
+    plot.title = element_text(size = 12)
+  )
 ```
 
 <br>
@@ -388,8 +401,8 @@ admission_from_plot %>%
 ## Visit Detail
 
 ```{r}
-if(nrow(visit_detail) == 0){
-asis_output("The Visit Detail table is empty")
+if (nrow(visit_detail) == 0) {
+  asis_output("The Visit Detail table is empty")
 }
 ```
 

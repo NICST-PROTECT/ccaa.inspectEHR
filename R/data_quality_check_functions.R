@@ -1,3 +1,51 @@
+#' check whether the column is non empty
+#' @param dataset an dataframe
+#' @param column the column interested within ''
+#'
+#' @return
+#'
+check_empty <- function(dataset, column, qual_df, check) {
+  total <- nrow(dataset)
+
+  # data set is filtered according to the fail condition
+  dataset <- dataset %>%
+    filter(is.na(!!sym(column)))
+
+  check_pass_status <- ((dataset %>% nrow()) == 0)
+  fail_count <- nrow(dataset)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
+  qual_df
+}
+
+
+#' check a number is within a given range
+#'
+#' @param dataset an dataframe
+#' @param column the column interested within ''
+#'
+#' @return
+#'
+check_number_within <- function(dataset, column, min_val, max_val, qual_df, check) {
+  total <- nrow(dataset)
+
+  dataset[[column]] <- as.numeric(dataset[[column]])
+  dataset <- data.frame(dataset)
+
+  # data set is filtered according to the fail condition
+  dataset <- dataset %>%
+    filter(!!sym(column) < min_val | !!sym(column) > max_val)
+
+  check_pass_status <- ((dataset %>% nrow()) == 0)
+  fail_count <- nrow(dataset)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
+  qual_df
+}
+
+
 #' check duplicates of a given data frame column
 #'
 #' @param dataset an dataframe
@@ -5,11 +53,26 @@
 #'
 #' @return
 #'
-find_duplicates <- function(dataset, column) {
+find_duplicates <- function(dataset, column, qual_df, check) {
+  # # check qual_df is exists, otherwise create it
+  # if (!(exists(qual_df))){
+  #   qual_df <- data.frame(matrix(ncol = 4, nrow = 0))
+  #   colnames(qual_df) <- c("Check", "Number of entries", "Status", "If check fails : n(%)")
+  # } else {
+  #   qual_df <- get('qual_df')
+  # }
+
+  total <- nrow(dataset)
+
   dataset <- data.frame(dataset)
   duplicates <- dataset[duplicated(dataset[column]), ]
-  row.names(duplicates) <- NULL
-  return(duplicates)
+
+  check_pass_status <- ((duplicates %>% nrow()) == 0)
+  fail_count <- nrow(duplicates)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
+  qual_df
 }
 
 
@@ -26,10 +89,17 @@ find_duplicates <- function(dataset, column) {
 #' @return
 #'
 
-check_id_availability <- function(check_df, check_col, compare_df, compare_col) {
+check_id_availability <- function(check_df, check_col, compare_df, compare_col, qual_df, check) {
+  total <- nrow(check_df)
+
   unavailable <- check_df[!check_df[[check_col]] %in% compare_df[[compare_col]], ]
-  row.names(unavailable) <- NULL
-  return(unavailable)
+
+  check_pass_status <- ((unavailable %>% nrow()) == 0)
+  fail_count <- nrow(unavailable)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
+  qual_df
 }
 
 
@@ -46,7 +116,9 @@ check_id_availability <- function(check_df, check_col, compare_df, compare_col) 
 #' @return
 #'
 
-check_date_within <- function(check_df, check_date, compare_df, compare_date, check_arg) {
+check_date_within <- function(check_df, check_date, compare_df, compare_date, check_arg, qual_df, check) {
+  total <- nrow(check_df)
+
   if (missing(compare_df)) {
     compare_df <- data.frame(matrix(ncol = 0, nrow = nrow(check_df)))
     compare_df$compare <- as.Date(compare_date)
@@ -66,7 +138,12 @@ check_date_within <- function(check_df, check_date, compare_df, compare_date, ch
     ) %>%
     filter(eval(parse(text = paste("check", check_arg, "compare"))))
 
-  return(df)
+  check_pass_status <- ((df %>% nrow()) == 0)
+  fail_count <- nrow(df)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count)
+
+  qual_df
 }
 
 
@@ -94,7 +171,7 @@ get_source_concept_id <- function(measure_field, mapping_sheet) {
 #'
 #' @return
 
-check_measure_bounds <- function(measure, measurement, bound_df) {
+check_measure_bounds <- function(measure, measurement, bound_df, qual_df, check, tolerance) {
   lower_bound <- bound_df %>%
     filter(Variable == measure) %>%
     pull(`Lower bound`)
@@ -105,8 +182,15 @@ check_measure_bounds <- function(measure, measurement, bound_df) {
     filter(Variable == measure) %>%
     pull(`Concept ID`)
 
+  total <- nrow(measurement)
+
   abnormal_df <- measurement %>% filter((value_as_number < lower_bound | value_as_number > upper_bound) & (measurement_concept_id == concept_id))
-  return(abnormal_df)
+
+  check_pass_status <- ((abnormal_df %>% nrow()) == 0)
+  fail_count <- nrow(abnormal_df)
+
+  qual_df <- make_data_quality_df(qual_df, check, check_pass_status, total, fail_count, tolerance)
+  qual_df
 }
 
 
@@ -125,4 +209,29 @@ add_new_check <- function(qual_df, total, check, status, fail_count, fail_percen
   new_row <- c(check, total, status, paste(fail_count, paste0(" (", fail_percentage, "%)")))
   qual_df[nrow(qual_df) + 1, ] <- new_row
   return(qual_df)
+}
+
+
+#' This function will do the data quality check and add it to the common dataframe
+#'
+#' @param df  common dataframe
+#' @param total the denominator of the check
+#' @param check the check/query
+#' @param check_run_status Pass/Fail status
+#' @param fail_count fail count, if check pass this is zero
+#'
+#' @return
+make_data_quality_df <- function(df, check, check_run_status, total, fail_count = 0, tolerance = "0") {
+  if (check_run_status) {
+    new_row <- c(check, total, "Pass", "0  (0%)")
+  } else {
+    fail_percentage <- format(round(fail_count / total * 100, 4), scientific = FALSE)
+    if (as.numeric(fail_percentage) > as.numeric(tolerance)) {
+      new_row <- c(check, total, "Fail", paste(fail_count, paste0(" (", fail_percentage, "%)")))
+    } else {
+      new_row <- c(check, total, "Pass", paste(fail_count, paste0(" (", fail_percentage, "%)")))
+    }
+  }
+  df[nrow(df) + 1, ] <- new_row
+  df
 }

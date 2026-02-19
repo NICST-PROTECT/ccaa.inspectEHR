@@ -6,526 +6,308 @@ output:
     self_contained: true
     toc: true
     toc_depth: 2
-editor_options: 
+    toc_float: true
+editor_options:
   chunk_output_type: console
 params:
-  output:
-    label: "Output Name"
-    value: output
-    input: text
-  output_path:
-    label: "Output Path"
-    value: output_path
-    input: text
-  driver:
-    label: "Driver:"
-    value: PostgreSQL
-    input: select
-    choices: [PostgreSQL, ODBC, SQLite]
-  host: 
-    label: "Host:"
-    value: default_host
-    input: text
-  port: 
-    label: "Port:"
-    value: 5432
-    input: numeric
-  dbname: 
-    label: "Database Name:"
-    value: database
-    input: text
-  schema: 
-    label: "Schema:"
-    value: decovid_omop
-    input: text
-  user: 
-    label: "User name:"
-    value: user_name
-    input: text
-  password: 
-    label: "Password:"
-    value: password
-    input: password
-  local_hospital:
-    label: "Hospital name:"
-    value: CCAA
-    input: text
-  start_date :
-    label : "Start date"
-    value : start_date
-    input : date
-  end_date :
-    label : "End date"
-    value : end_date
-    input : date
-  measurement_tolerance :
-    label : "Measurement Toerance(%)"
-    value : measurement_tolerance
-    input : numeric
+  output:         { label: "Output Name",    value: output,       input: text }
+  output_path:    { label: "Output Path",    value: output_path,  input: text }
+  driver:         { label: "Driver",         value: PostgreSQL,   input: select, choices: [PostgreSQL, ODBC, SQLite] }
+  host:           { label: "Host",           value: default_host, input: text }
+  port:           { label: "Port",           value: 5432,         input: numeric }
+  dbname:         { label: "Database Name",  value: database,     input: text }
+  schema:         { label: "Schema",         value: decovid_omop, input: text }
+  user:           { label: "User name",      value: user_name,    input: text }
+  password:       { label: "Password",       value: password,     input: password }
+  local_hospital: { label: "Hospital name",  value: CCAA,         input: text }
+  start_date:     { label: "Start date",     value: start_date,   input: date }
+  end_date:       { label: "End date",       value: end_date,     input: date }
+  measurement_tolerance: { label: "Measurement Tolerance (%)", value: 5, input: numeric }
 ---
-<style type="text/css">
 
-h1.title {
-  font-size: 38px;
-  text-align: center;
-}
-h4.date {
-  font-size: 18px;
-  text-align: center;
-}
+<style>
+h1.title { font-size: 38px; text-align: center; }
+h4.date  { font-size: 18px; text-align: center; }
 </style>
 
-<br>
-<font size="4"> Reporting Period : `r {params$start_date}` to `r {params$end_date}` </font> 
-
-```{r, include = FALSE}
+```{r setup, include=FALSE}
 library(knitr)
+library(kableExtra)
 library(ggplot2)
 library(dplyr)
+library(tidyr)
+library(purrr)
+library(stringr)
 library(readr)
 library(DBI)
-library(rmarkdown)
-library(stringr)
-library(tidyverse)
+library(dbplyr)
+library(lubridate)
 library(patchwork)
 
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  echo = FALSE, warning = FALSE, error = FALSE, message = FALSE,
-  out.width = "100%",
-  dpi = 300
-)
+opts_chunk$set(echo = FALSE, warning = FALSE, error = FALSE, message = FALSE,
+               out.width = "100%", dpi = 300)
 
-if (params$local_hospital == "CCAA") {
-  ccaa <- TRUE
-} else {
-  ccaa <- FALSE
-}
+ccaa <- params$local_hospital == "CCAA"
+
+source("R/utils.R")
+source("R/plots.R")
 ```
-
-
-```{r prepare-st}
-# Connect to the database.
-# Read core tables and prepare overview.
-ctn <- setup_ctn(params)
-
-period_person_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
-
-observation_period <- tbl(ctn, in_schema(params$schema, "observation_period")) %>% as_tibble()
-observation_period <- observation_period %>% filter(person_id %in% period_person_ids)
-
-visit_detail <- tbl(ctn, in_schema(params$schema, "visit_detail")) %>%
-  as_tibble() %>%
-  filter(person_id %in% period_person_ids) %>%
-  get_concept_names(ctn, params$schema)
-
-st <- prepare_tables(ctn, params$schema) %>%
-  map(~
-    filter(., person_id %in% period_person_ids))
-
-
-overview <- prepare_overview(st)
-
-care_sites <- unique(st[["person"]]$care_site_id)
-
-# Getting counts of all the tables.
-table_counts <- prepare_tally(ctn, params$schema, filter_person_ids = period_person_ids, filter_care_sites = care_sites)
-
-zero_vals <- table_counts %>%
-  filter(n == 0) %>%
-  select(table) %>%
-  pull()
-
-
-measurement_observation_summary <- read_file(system.file("measurement_observation_summary.sql",
-  package = "ccaa.inspectEHR"
-)) %>%
-  str_replace_all(":OMOP_SCHEMA", params$schema) %>%
-  str_replace_all("date_start", params$start_date) %>%
-  str_replace_all("date_end", params$end_dat) %>%
-  dbGetQuery(ctn, .) %>%
-  as_tibble() %>%
-  mutate(
-    concept_id = as.character(concept_id),
-    unit_concept_id = as.character(unit_concept_id),
-    count = as.numeric(count),
-    min = as.numeric(min),
-    mean = as.numeric(mean),
-    median = as.numeric(median)
-  )
-
-condition_procedure_summary <- read_file(system.file("condition_procedure_summary.sql", package = "ccaa.inspectEHR")) %>%
-  str_replace_all(":OMOP_SCHEMA", params$schema) %>%
-  str_replace_all("date_start", params$start_date) %>%
-  str_replace_all("date_end", params$end_dat) %>%
-  dbGetQuery(ctn, .) %>%
-  as_tibble() %>%
-  mutate(
-    concept_id = as.character(concept_id),
-    count = as.numeric(count)
-  )
-
-drug_summary <- read_file(system.file("drug_summary.sql", package = "ccaa.inspectEHR")) %>%
-  str_replace_all(":OMOP_SCHEMA", params$schema) %>%
-  str_replace_all("date_start", params$start_date) %>%
-  str_replace_all("date_end", params$end_dat) %>%
-  dbGetQuery(ctn, .) %>%
-  as_tibble() %>%
-  mutate(
-    concept_id = as.character(concept_id),
-    count = as.numeric(count)
-  )
-
-glossary <- read_csv(file = system.file("data", "glossary.csv", package = "ccaa.inspectEHR"))
-
-custom_colors <- c("#379481", "#4CA1CB", "#3AB8EE", "#569FB2")
-```
-
-<br></br>
-<br></br>
-
-```{r, eval = ccaa}
-asis_output(paste("## OMOP Structure at", params$local_hospital, "\\n"))
-```
-
-```{r eval=ccaa, width=100, height=25}
-knitr::include_graphics("./OMOP structure.jpg")
-```
-
 
 <br>
+<font size="4">Reporting Period: `r params$start_date` to `r params$end_date`</font>
+<br><br>
+
+```{r load-data}
+ctn        <- setup_ctn(params)
+period_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
+
+obs_period   <- tbl(ctn, in_schema(params$schema, "observation_period")) |>
+  filter(person_id %in% period_ids) |> collect()
+visit_detail <- tbl(ctn, in_schema(params$schema, "visit_detail")) |>
+  filter(person_id %in% period_ids) |>
+  collect() |>
+  apply_concept_names(ctn, params$schema)
+
+st           <- prepare_tables(ctn, params$schema) |>
+  map(~ filter(., person_id %in% period_ids))
+overview     <- prepare_overview(st)
+care_sites   <- unique(st[["person"]]$care_site_id)
+table_counts <- prepare_tally(ctn, params$schema,
+                               filter_person_ids = period_ids,
+                               filter_care_sites = care_sites)
+zero_vals    <- table_counts |> filter(n == 0) |> pull(table)
+
+glossary <- read_csv(system.file("data", "glossary.csv", package = "ccaa.inspectEHR"),
+                     show_col_types = FALSE)
+
+# SQL summaries (end_date bug fixed – was params$end_dat in the original)
+run_sql <- function(file, schema, start_date, end_date) {
+  readr::read_file(system.file(file, package = "ccaa.inspectEHR")) |>
+    stringr::str_replace_all(":OMOP_SCHEMA", schema) |>
+    stringr::str_replace_all("date_start",   start_date) |>
+    stringr::str_replace_all("date_end",     end_date) |>
+    DBI::dbGetQuery(ctn, x = _) |>
+    tibble::as_tibble()
+}
+
+meas_obs_summary <- run_sql("measurement_observation_summary.sql",
+                             params$schema, params$start_date, params$end_date) |>
+  mutate(across(c(concept_id, unit_concept_id), as.character),
+         across(c(count, min, mean, median), as.numeric))
+
+cond_proc_summary <- run_sql("condition_procedure_summary.sql",
+                              params$schema, params$start_date, params$end_date) |>
+  mutate(concept_id = as.character(concept_id), count = as.numeric(count))
+
+drug_summary <- run_sql("drug_summary.sql",
+                         params$schema, params$start_date, params$end_date) |>
+  mutate(concept_id = as.character(concept_id), count = as.numeric(count))
+```
+
+```{r, eval=ccaa}
+asis_output(glue::glue("## OMOP Structure at {params$local_hospital}\n"))
+knitr::include_graphics('./OMOP structure.jpg')
+```
 
 ## Glossary
 
-```{r}
-glossary %>%
-  print_large_kable() %>%
-  column_spec(1, width = "25%") %>%
+```{r glossary}
+glossary |>
+  print_large_kable() |>
+  column_spec(1, width = "25%") |>
   column_spec(2:ncol(glossary), width = "75%")
 ```
 
+---
+
+## General Counts
+
 ```{r row-counts}
-summary <- tibble(
-  variable = character(),
-  value = character()
-)
+tally_val <- function(tbl_name) {
+  table_counts |> filter(table == tbl_name) |> pull(n)
+}
 
-summary <- bind_rows(summary, c(c(variable = "Number of patients"),
-  value = filter(table_counts, table == "person") %>% pull(n)
-))
-summary <- bind_rows(summary, c(c(variable = "Number of visit occurrences"),
-  value = filter(table_counts, table == "visit_occurrence") %>% pull(n)
-))
-summary <- bind_rows(summary, c(c(variable = "Number of care sites"),
-  value = filter(table_counts, table == "care_site") %>% pull(n)
-))
-summary <- bind_rows(summary, c(c(variable = "Number of males"),
-  value = nrow(st[["person"]] %>% filter(gender_concept_id == "MALE"))
-))
-summary <- bind_rows(summary, c(c(variable = "Number of females"),
-  value = nrow(st[["person"]] %>% filter(gender_concept_id == "FEMALE"))
-))
-summary <- bind_rows(summary, c(c(variable = "Number of missing gender records"),
-  value = nrow(st[["person"]] %>% filter(is.na(gender_concept_id)))
-))
-summary <- bind_rows(summary, c(c(variable = "Number of missing years of birth"),
-  value = nrow(st[["person"]] %>% filter(is.na(year_of_birth)))
-))
-summary <- bind_rows(summary, c(c(variable = "Number of measurements"),
-  value = filter(table_counts, table == "measurement") %>% pull(n)
-))
-summary <- bind_rows(summary, c(c(variable = "Number of observations"),
-  value = filter(table_counts, table == "observation") %>% pull(n)
-))
-summary <- bind_rows(summary, c(c(variable = "Number of conditions"),
-  value = filter(table_counts, table == "condition_occurrence") %>% pull(n)
-))
-summary <- bind_rows(summary, c(c(variable = "Number of procedures"),
-  value = filter(table_counts, table == "procedure_occurrence") %>% pull(n)
-))
-summary <- bind_rows(summary, c(c(variable = "Number of drug exposures"),
-  value = filter(table_counts, table == "drug_exposure") %>% pull(n)
-))
+tibble(
+  Variable = c("Patients", "Visit occurrences", "Care sites",
+               "Males", "Females", "Missing gender",
+               "Missing year of birth",
+               "Measurements", "Observations",
+               "Conditions", "Procedures", "Drug exposures"),
+  Count = c(
+    tally_val("person"), tally_val("visit_occurrence"), tally_val("care_site"),
+    nrow(filter(st[["person"]], gender_concept_id == "MALE")),
+    nrow(filter(st[["person"]], gender_concept_id == "FEMALE")),
+    nrow(filter(st[["person"]], is.na(gender_concept_id))),
+    nrow(filter(st[["person"]], is.na(year_of_birth))),
+    tally_val("measurement"), tally_val("observation"),
+    tally_val("condition_occurrence"), tally_val("procedure_occurrence"),
+    tally_val("drug_exposure")
+  )
+) |> print_large_kable()
 ```
 
-## General counts
-```{r}
-summary %>%
-  mutate(value = as.integer(value)) %>%
-  print_large_kable()
-```
-
-<br>
-<br>
+---
 
 ## Person Table
 
-```{r ages}
+```{r person-plots, fig.height=4}
 if ("person" %in% zero_vals) {
-  cat("There is no data in the person table")
+  cat("No data in the person table.")
 } else {
-  age_plot <- plot_person_char(overview %>% 
-                                 mutate(age = cut(age, c(18, seq(20, 140, by = 5)))), "age", "Age distribution") %>% custom_theme(custom_colors)
-  check_age <- min(overview$age, na.rm = TRUE) >= 18
-
-  sex_plot <- plot_person_char(st[["person"]], "gender_concept_id","Sex distribution") %>% custom_theme(custom_colors)
-  ethnic_plot <- plot_person_char(st[["person"]] %>%
-    mutate(race_concept_id = gsub(" - England and Wales ethnic category 2011 census","",race_concept_id)) %>%
-    mutate(race_concept_id = if_else(nchar(race_concept_id) >= 30,paste0(stringr::str_sub(race_concept_id, 1, 29), "..."),race_concept_id)) %>%
-    mutate(race_concept_id = forcats::fct_rev(forcats::fct_infreq(race_concept_id))), "race_concept_id", "Ethnicity distribution") %>% custom_theme(custom_colors)
-
-  age_plot + sex_plot + ethnic_plot & theme(
-    axis.title = element_text(size = 6),
-    axis.text = element_text(size = 6),
-    plot.title = element_text(size = 12)
-  )
+  plot_age(overview) + plot_sex(st[["person"]]) + plot_ethnicity(st[["person"]]) &
+    theme(axis.title = element_text(size = 6),
+          axis.text  = element_text(size = 6),
+          plot.title = element_text(size = 10))
 }
 ```
 
-<br>
-<br>
+---
 
-## Visit Occurence
-
-Number of visits stratified by visit type:
+## Visit Occurrence
 
 ```{r visit-types}
-if (!("visit_occurrence" %in% zero_vals)) {
-  st[["visit_occurrence"]] %>%
-    group_by(visit_concept_id) %>%
-    summarise(
-      count = n(),
-      percentage = round((n() / nrow(st[["visit_occurrence"]])) * 100, 0)
-    ) %>%
+if (!"visit_occurrence" %in% zero_vals) {
+  st[["visit_occurrence"]] |>
+    count(visit_concept_id, name = "count") |>
+    mutate(percentage = round(count / sum(count) * 100)) |>
     print_large_kable()
 }
 ```
 
-```{r visit-profile}
-plot_visit_profile(
-  st[["visit_occurrence"]], params$start_date, params$end_date,
-  custom_colors
-) %>% custom_theme(custom_colors)
+```{r visit-profile, fig.height=3}
+plot_visit_profile(st[["visit_occurrence"]], params$start_date, params$end_date)
 ```
 
-```{r admission-from1}
-st[["visit_occurrence"]] %>%
-  select("Source of admission" = any_of(c("admitted_from_concept_id", "admitting_source_concept_id"))) %>%
-  group_by(`Source of admission`) %>%
-  tally(name = "Number of admissions") %>%
-  arrange(desc(`Number of admissions`)) %>%
-  print_large_kable()
+```{r admission-discharge, fig.height=4}
+# Admission source
+adm_plot <- st[["visit_occurrence"]] |>
+  rename(any_of(c(admitted_from_concept_id = "admitting_source_concept_id"))) |>
+  mutate(admitted_from_concept_id =
+           forcats::fct_infreq(as.character(admitted_from_concept_id))) |>
+  count(admitted_from_concept_id) |>
+  check_zero_tally(n) |>
+  ggplot(aes(y = admitted_from_concept_id, x = n)) +
+  geom_point(colour = PALETTE[1]) +
+  geom_segment(aes(x = 0, xend = n, yend = admitted_from_concept_id),
+               colour = PALETTE[1]) +
+  labs(x = "Count", y = "", title = "Source of admission") +
+  theme_omop()
+
+# Discharge destination
+dis_plot <- st[["visit_occurrence"]] |>
+  rename(any_of(c(discharged_to_concept_id = "discharge_to_concept_id"))) |>
+  mutate(discharged_to_concept_id =
+           forcats::fct_infreq(as.character(discharged_to_concept_id))) |>
+  count(discharged_to_concept_id) |>
+  check_zero_tally(n) |>
+  ggplot(aes(y = discharged_to_concept_id, x = n)) +
+  geom_point(colour = PALETTE[2]) +
+  geom_segment(aes(x = 0, xend = n, yend = discharged_to_concept_id),
+               colour = PALETTE[2]) +
+  labs(x = "Count", y = "", title = "Discharge destination") +
+  theme_omop()
+
+adm_plot + dis_plot
 ```
 
-```{r admission-from2}
-admission_from_plot <- st[["visit_occurrence"]] %>%
-  rename(any_of(c(admitted_from_concept_id = "admitting_source_concept_id"))) %>%
-  mutate(
-    admitted_from_concept_id =
-      forcats::fct_infreq(as.character(admitted_from_concept_id))
-  ) %>%
-  group_by(admitted_from_concept_id) %>%
-  tally() %>%
-  check_zero_tally(n) %>%
-  ggplot(aes(x = admitted_from_concept_id)) +
-  geom_point(aes(y = n)) +
-  geom_segment(aes(
-    y = 0,
-    yend = n,
-    xend = admitted_from_concept_id
-  )) +
-  scale_colour_manual(values = custom_colors, drop = FALSE) +
-  theme_classic() +
-  theme(
-    axis.title = element_text(size = 6),
-    axis.text = element_text(size = 6),
-    legend.position = "none"
-  ) +
-  labs(y = "Count", x = "") +
-  theme_d() +
-  coord_flip() +
-  ggtitle("Source of admission")
-```
-
-```{r discharge-to1}
-st[["visit_occurrence"]] %>%
-  select("Discharge destination" = any_of(c("discharged_to_concept_id", "discharge_to_concept_id"))) %>%
-  group_by(`Discharge destination`) %>%
-  tally(name = "Number of admissions") %>%
-  arrange(desc(`Number of admissions`)) %>%
-  print_large_kable()
-```
-
-```{r discharge-to2}
-discharge_to_plot <- st[["visit_occurrence"]] %>%
-  rename(any_of(c(discharged_to_concept_id = "discharge_to_concept_id"))) %>%
-  mutate(discharged_to_concept_id = forcats::fct_infreq(as.character(discharged_to_concept_id))) %>%
-  group_by(discharged_to_concept_id) %>%
-  tally() %>%
-  check_zero_tally(n) %>%
-  ggplot(aes(x = discharged_to_concept_id)) +
-  geom_point(aes(y = n)) +
-  geom_segment(aes(
-    y = 0,
-    yend = n,
-    xend = discharged_to_concept_id
-  )) +
-  scale_colour_manual(values = custom_colors, drop = FALSE) +
-  theme_classic() +
-  theme(
-    axis.title = element_text(size = 6),
-    axis.text = element_text(size = 6),
-    legend.position = "none"
-  ) +
-  labs(y = "Count", x = "") +
-  theme_d() +
-  coord_flip() +
-  ggtitle("Discharge Destination")
-```
-
-```{r plot both admission from and discharge to}
-admission_from_plot %>%
-  custom_theme(custom_colors) + discharge_to_plot %>%
-  custom_theme(custom_colors) +
-  theme(
-    axis.title = element_text(size = 6),
-    axis.text = element_text(size = 6),
-    plot.title = element_text(size = 12)
-  )
-```
-
-<br>
-<br>
+---
 
 ## Visit Detail
 
-```{r}
+```{r visit-detail}
 if (nrow(visit_detail) == 0) {
-  asis_output("The Visit Detail table is empty")
-}
-```
-
-```{r visit_detail-types}
-if (nrow(visit_detail) != 0) {
-  visit_detail %>%
-    group_by(visit_detail_concept_id) %>%
-    summarise(
-      count = n(),
-      percentage = round((n() / nrow(visit_detail)) * 100, 0)
-    ) %>%
+  cat("The Visit Detail table is empty.")
+} else {
+  visit_detail |>
+    count(visit_detail_concept_id, name = "count") |>
+    mutate(percentage = round(count / sum(count) * 100)) |>
     print_large_kable()
 }
 ```
 
-```{r visit-detail-profile}
-if (nrow(visit_detail) != 0) {
-  plot_visit_detail_profile(visit_detail, params$start_date, params$end_date, custom_colors) %>% custom_theme(custom_colors)
-}
+```{r visit-detail-profile, fig.height=3}
+if (nrow(visit_detail) > 0)
+  plot_visit_detail_profile(visit_detail, params$start_date, params$end_date)
 ```
 
-<br>
-<br>
+---
 
 ## Outcomes
 
-The following list the outcomes for patients attending at **`r params$local_hospital`**:
+Outcomes for patients at **`r params$local_hospital`**:
 
 ```{r outcomes}
-overview %>%
-  distinct(person_id, .keep_all = TRUE) %>%
-  filter(!is.na(visit_occurrence_id)) %>%
-  group_by(visit_concept_id, death = !is.na(death_datetime)) %>%
-  tally() %>%
-  group_by(visit_concept_id) %>%
-  mutate(
-    total = sum(n),
-    `%` = round((n / total) * 100, 0)
-  ) %>%
+overview |>
+  distinct(person_id, .keep_all = TRUE) |>
+  filter(!is.na(visit_occurrence_id)) |>
+  group_by(visit_concept_id, death = !is.na(death_datetime)) |>
+  tally() |>
+  group_by(visit_concept_id) |>
+  mutate(total = sum(n), `%` = round(n / total * 100)) |>
   print_large_kable()
 ```
 
-### Distributions of Times
-
-Typically patients are admitted earlier in the day, and discharged later.
-Death often has a uniform distribution, with perhaps a slight peak in the early morning or later afternoon.
-
-```{r outcome-dist}
-outcome_dist <- overview %>%
-  select(visit_start_datetime, visit_end_datetime, death_datetime) %>%
-  mutate_all(~ as.POSIXct(., tz = "UTC")) %>%
-  filter_all(any_vars(!is.na(.))) %>%
-  mutate_all(~ hms::as_hms(.)) %>%
-  tidyr::pivot_longer(everything(), names_to = "time_point", values_to = "time") %>%
+```{r outcome-dist, fig.height=3}
+overview |>
+  select(visit_start_datetime, visit_end_datetime, death_datetime) |>
+  mutate(across(everything(), ~ as.POSIXct(., tz = "UTC"))) |>
+  filter(if_any(everything(), ~ !is.na(.))) |>
+  mutate(across(everything(), hms::as_hms)) |>
+  pivot_longer(everything(), names_to = "time_point", values_to = "time") |>
   ggplot(aes(x = time, fill = time_point)) +
   geom_density(alpha = 0.5) +
-  labs(x = "Event time distribution", fill = "Event", y = "Density") +
-  theme(legend.position = "bottom") +
-  scale_fill_manual(values = custom_colors)
-
-outcome_dist %>% custom_theme(custom_colors)
-```
-<br>
-<br>
-
-## Measurements
-The 50 most common concepts are displayed.
-```{r}
-measurement_observation_summary %>%
-  filter(table_name == "measurement") %>%
-  select(-c(table_name, most_frequent_string, most_frequent_category)) %>%
-  rename(most_frequent_category = most_frequent_category_name) %>%
-  print_large_kable(max_rows = 50) %>%
-  scroll_box(
-    width = "100%", height = "500px",
-    box_css = "border: 1px solid #ddd; Padding-left: 20px"
-  )
+  scale_fill_manual(values = PALETTE) +
+  labs(x = "Time of day", y = "Density", fill = NULL,
+       title = "Distribution of admission, discharge and death times") +
+  theme_omop()
 ```
 
-<br>
-<br>
+---
 
-## Observations
-The 50 most common concepts are displayed.
-```{r}
-measurement_observation_summary %>%
-  filter(table_name == "observation") %>%
-  select(-c(table_name, most_frequent_category)) %>%
-  rename(most_frequent_category = most_frequent_category_name) %>%
-  print_large_kable(max_rows = 50) %>%
-  scroll_box(
-    width = "100%", height = "500px",
-    box_css = "border: 1px solid #ddd; Padding-left: 20px"
-  )
-```
-<br>
-<br>
+## Measurements *(50 most common)*
 
-## Condition and Procedure Occurence.
-The 50 most common concepts are displayed.
-```{r}
-condition_procedure_summary %>%
-  print_large_kable(max_rows = 50) %>%
-  scroll_box(
-    width = "100%", height = "500px",
-    box_css = "border: 1px solid #ddd; Padding-left: 20px"
-  )
-```
-<br>
-<br>
-
-## Drug Exposure
-The 50 most common concepts are displayed.
-```{r}
-drug_summary %>%
-  print_large_kable(max_rows = 50) %>%
-  scroll_box(
-    width = "100%", height = "500px",
-    box_css = "border: 1px solid #ddd; Padding-left: 20px"
-  )
+```{r meas-table}
+meas_obs_summary |>
+  filter(table_name == "measurement") |>
+  select(-c(table_name, most_frequent_string, most_frequent_category)) |>
+  rename(most_frequent_category = most_frequent_category_name) |>
+  print_large_kable(max_rows = 50) |>
+  scroll_box(width = "100%", height = "500px")
 ```
 
+---
 
-```{r}
+## Observations *(50 most common)*
+
+```{r obs-table}
+meas_obs_summary |>
+  filter(table_name == "observation") |>
+  select(-c(table_name, most_frequent_category)) |>
+  rename(most_frequent_category = most_frequent_category_name) |>
+  print_large_kable(max_rows = 50) |>
+  scroll_box(width = "100%", height = "500px")
+```
+
+---
+
+## Conditions & Procedures *(50 most common)*
+
+```{r cond-proc-table}
+cond_proc_summary |>
+  print_large_kable(max_rows = 50) |>
+  scroll_box(width = "100%", height = "500px")
+```
+
+---
+
+## Drug Exposure *(50 most common)*
+
+```{r drug-table}
+drug_summary |>
+  print_large_kable(max_rows = 50) |>
+  scroll_box(width = "100%", height = "500px")
+```
+
+```{r disconnect}
 DBI::dbDisconnect(ctn)
 ```

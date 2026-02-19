@@ -4,7 +4,7 @@
 \alias{prepare_overview}
 \title{Prepare Overview Table}
 \usage{
-prepare_overview(x)
+prepare_overview(st)
 }
 \arguments{
 \item{x}{the output from \code{\link{prepare_tables}}}

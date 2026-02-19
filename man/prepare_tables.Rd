@@ -4,7 +4,7 @@
 \alias{prepare_tables}
 \title{Prepare Small Database Tables}
 \usage{
-prepare_tables(connection, schema_name)
+prepare_tables(ctn, schema)
 }
 \arguments{
 \item{connection}{a connection object created with \code{\link{DBI::dbConnect}}}

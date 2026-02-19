@@ -4,7 +4,7 @@
 \alias{find_duplicates}
 \title{check duplicates of a given data frame column}
 \usage{
-find_duplicates(dataset, column)
+find_duplicates(df, cols)
 }
 \arguments{
 \item{dataset}{an dataframe}

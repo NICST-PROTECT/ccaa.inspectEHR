@@ -13,7 +13,7 @@
 #'   - password: string, database user password
 #'   - local_hospital: string, local hospital
 #'
-#' @return
+#' @importFrom rmarkdown render
 #' @export
 render_summary_report <- function(params = "ask") {
   if (is.null(params$output)) {
@@ -21,7 +21,7 @@ render_summary_report <- function(params = "ask") {
   }
 
   report_pth <- system.file("OMOP-Summary.Rmd", package = "ccaa.inspectEHR")
-  rmarkdown::render(report_pth,
+  render(report_pth,
     params = params,
     output_file = params$output,
     envir = new.env(),
@@ -44,8 +44,7 @@ render_summary_report <- function(params = "ask") {
 #'   - user: string, database username
 #'   - password: string, database user password
 #'   - local_hospital: string, local hospital
-#'
-#' @return
+#' @importFrom rmarkdown render
 #' @export
 render_quality_report <- function(params = "ask") {
   if (is.null(params$output)) {
@@ -53,7 +52,7 @@ render_quality_report <- function(params = "ask") {
   }
 
   report_pth <- system.file("OMOP-Data-Quality.Rmd", package = "ccaa.inspectEHR")
-  rmarkdown::render(report_pth,
+  render(report_pth,
     params = params,
     output_file = params$output,
     envir = new.env(),

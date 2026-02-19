@@ -4,7 +4,7 @@
 \alias{check_measure_bounds}
 \title{This function will check whether the given measurement is within the acceptable rate}
 \usage{
-check_measure_bounds(measure, measurement, bound_df)
+check_measure_bounds(measure, measurement, bound_df, qual_df, check, tolerance)
 }
 \arguments{
 \item{measure}{measure name}

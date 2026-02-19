@@ -4,7 +4,13 @@
 \alias{check_date_within}
 \title{check whether a date is before or after the given date from a dataframe}
 \usage{
-check_date_within(check_df, check_date, compare_df, compare_date, check_arg)
+check_date_within(
+  check_df,
+  check_date,
+  compare_df = NULL,
+  compare_date,
+  check_arg
+)
 }
 \arguments{
 \item{check_df}{an dataframe}

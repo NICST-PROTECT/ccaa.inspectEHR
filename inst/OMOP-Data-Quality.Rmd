@@ -49,8 +49,6 @@ opts_chunk$set(echo = FALSE, warning = FALSE, error = FALSE, message = FALSE,
                out.width = "100%", dpi = 300)
 
 ccaa <- params$local_hospital == "CCAA"
-source("R/utils.R")
-source("R/plots.R")
 ```
 
 <br>
@@ -61,20 +59,20 @@ source("R/plots.R")
 ctn        <- setup_ctn(params)
 period_ids <- get_period_patients(ctn, params$schema, params$start_date, params$end_date)
 
-obs_period   <- tbl(ctn, in_schema(params$schema, "observation_period")) |>
-  filter(person_id %in% period_ids) |> collect()
-visit_detail <- tbl(ctn, in_schema(params$schema, "visit_detail")) |>
-  filter(person_id %in% period_ids) |> collect()
-measurements <- tbl(ctn, in_schema(params$schema, "measurement")) |>
-  filter(person_id %in% period_ids) |> collect()
-observations_tbl <- tbl(ctn, in_schema(params$schema, "observation")) |>
-  filter(person_id %in% period_ids) |> collect()
-conditions   <- tbl(ctn, in_schema(params$schema, "condition_occurrence")) |>
-  filter(person_id %in% period_ids) |> collect()
-procedures   <- tbl(ctn, in_schema(params$schema, "procedure_occurrence")) |>
-  filter(person_id %in% period_ids) |> collect()
+obs_period   <- tbl(ctn, in_schema(params$schema, "observation_period")) %>%
+  filter(person_id %in% period_ids) %>% collect()
+visit_detail <- tbl(ctn, in_schema(params$schema, "visit_detail")) %>%
+  filter(person_id %in% period_ids) %>% collect()
+measurements <- tbl(ctn, in_schema(params$schema, "measurement")) %>%
+  filter(person_id %in% period_ids) %>% collect()
+observations_tbl <- tbl(ctn, in_schema(params$schema, "observation")) %>%
+  filter(person_id %in% period_ids) %>% collect()
+conditions   <- tbl(ctn, in_schema(params$schema, "condition_occurrence")) %>%
+  filter(person_id %in% period_ids) %>% collect()
+procedures   <- tbl(ctn, in_schema(params$schema, "procedure_occurrence")) %>%
+  filter(person_id %in% period_ids) %>% collect()
 
-st         <- prepare_tables(ctn, params$schema) |> map(~ filter(., person_id %in% period_ids))
+st         <- prepare_tables(ctn, params$schema) %>% map(~ filter(., person_id %in% period_ids))
 overview   <- prepare_overview(st)
 care_sites <- unique(st[["person"]]$care_site_id)
 vo         <- st[["visit_occurrence"]]
@@ -95,9 +93,9 @@ knitr::include_graphics('./OMOP structure.jpg')
 ## Glossary
 
 ```{r glossary}
-glossary |>
-  print_large_kable() |>
-  column_spec(1, width = "25%") |>
+glossary %>%
+  print_large_kable() %>%
+  column_spec(1, width = "25%") %>%
   column_spec(2:ncol(glossary), width = "75%")
 ```
 
@@ -112,40 +110,34 @@ n_overv  <- nrow(overview)
 DQ <- bind_rows(DQ,
 
   # Age plausibility
-  overview |>
-    summarise(fail_n = sum(age < 0 | age > 120, na.rm = TRUE)) |>
-    pull(fail_n) |>
+  overview %>%
+    summarise(fail_n = sum(age < 0 | age > 120, na.rm = TRUE)) %>%
+    pull(fail_n) %>%
     dq_row("Atemporal plausibility", "Person",
-           "Age is between 0 and 120 years", n_overv, fail_n = _),
+           "Age is between 0 and 120 years", n_overv, fail_n = .),
 
   # Duplicate person_source_value
-  find_duplicates(st[["person"]], "person_source_value") |>
-    nrow() |>
+  find_duplicates(st[["person"]], "person_source_value") %>%
     dq_row("Uniqueness", "Person",
-           "person_source_value is not duplicated", n_person, fail_n = _),
+           "person_source_value is not duplicated", n_person, fail_n = nrow(.)),
 
   # Completeness: every person appears in linked tables
-  check_id_availability(st[["person"]], "person_id", vo,           "person_id") |>
-    nrow() |>
-    dq_row("Completeness", "Person", "Every person has a visit_occurrence",   n_person, fail_n = _),
-  check_id_availability(st[["person"]], "person_id", obs_period,   "person_id") |>
-    nrow() |>
-    dq_row("Completeness", "Person", "Every person has an observation_period", n_person, fail_n = _),
-  check_id_availability(st[["person"]], "person_id", visit_detail, "person_id") |>
-    nrow() |>
-    dq_row("Completeness", "Person", "Every person has a visit_detail",        n_person, fail_n = _),
+  check_id_availability(st[["person"]], "person_id", vo,           "person_id") %>%
+    dq_row("Completeness", "Person", "Every person has a visit_occurrence",   n_person, fail_n = nrow(.)),
+  check_id_availability(st[["person"]], "person_id", obs_period,   "person_id") %>%
+    dq_row("Completeness", "Person", "Every person has an observation_period", n_person, fail_n = nrow(.)),
+  check_id_availability(st[["person"]], "person_id", visit_detail, "person_id") %>%
+    dq_row("Completeness", "Person", "Every person has a visit_detail",        n_person, fail_n = nrow(.)),
 
   # Year of birth temporal checks
   check_date_within(st[["person"]], "year_of_birth",
-                    obs_period, "observation_period_start_date", ">=") |>
-    nrow() |>
+                    obs_period, "observation_period_start_date", ">=") %>%
     dq_row("Temporal plausibility", "Person",
-           "Year of birth \u2264 observation period start date", n_person, fail_n = _),
+           "Year of birth \u2264 observation period start date", n_person, fail_n = nrow(.)),
   check_date_within(st[["person"]], "year_of_birth",
-                    compare_date = Sys.Date(), check_arg = ">=") |>
-    nrow() |>
+                    compare_date = Sys.Date(), check_arg = ">=") %>%
     dq_row("Temporal plausibility", "Person",
-           "Year of birth \u2264 today", n_person, fail_n = _)
+           "Year of birth \u2264 today", n_person, fail_n = nrow(.))
 )
 ```
 
@@ -160,22 +152,20 @@ DQ <- bind_rows(DQ,
 
   find_duplicates(obs_period,
     c("observation_period_id", "person_id",
-      "observation_period_start_date", "observation_period_end_date")) |>
-    nrow() |>
+      "observation_period_start_date", "observation_period_end_date")) %>%
+    nrow() %>%
     dq_row("Uniqueness", "Observation Period",
-           "observation_period_id is unique (person, start, end)", n_op, fail_n = _),
+           "observation_period_id is unique (person, start, end)", n_op, fail_n = .),
 
   check_date_within(obs_period, "observation_period_start_date",
-                    compare_date = Sys.Date(), check_arg = ">") |>
-    nrow() |>
+                    compare_date = Sys.Date(), check_arg = ">") %>%
     dq_row("Temporal plausibility", "Observation Period",
-           "Observation period start date is not in the future", n_op, fail_n = _),
+           "Observation period start date is not in the future", n_op, fail_n = nrow(.)),
 
   check_date_within(obs_period, "observation_period_start_date",
-                    obs_period, "observation_period_end_date", ">") |>
-    nrow() |>
+                    obs_period, "observation_period_end_date", ">") %>%
     dq_row("Temporal plausibility", "Observation Period",
-           "Observation period end date is after start date", n_op, fail_n = _)
+           "Observation period end date is after start date", n_op, fail_n = nrow(.))
 )
 ```
 
@@ -185,64 +175,59 @@ DQ <- bind_rows(DQ,
 
 ```{r dq-visit-occ}
 n_vo <- nrow(vo)
-vo_dt <- vo |>
+vo_dt <- vo %>%
   mutate(start_from_dt = as.Date(visit_start_datetime),
          end_from_dt   = as.Date(visit_end_datetime))
 
 DQ <- bind_rows(DQ,
 
-  overview |>
-    summarise(fail_n = sum(is.na(visit_occurrence_id))) |>
-    pull(fail_n) |>
+  overview %>%
+    summarise(fail_n = sum(is.na(visit_occurrence_id))) %>%
+    pull(fail_n) %>%
     dq_row("Completeness", "Visit Occurrence",
-           "All visit_occurrence_ids are populated", n_overv, fail_n = _),
+           "All visit_occurrence_ids are populated", n_overv, fail_n = .),
 
   find_duplicates(vo, c("visit_occurrence_id", "person_id",
-                         "visit_start_date", "visit_end_date")) |>
-    nrow() |>
+                         "visit_start_date", "visit_end_date")) %>%
+    nrow() %>%
     dq_row("Uniqueness", "Visit Occurrence",
-           "visit_occurrence_id is unique (person, start, end)", n_vo, fail_n = _),
+           "visit_occurrence_id is unique (person, start, end)", n_vo, fail_n = .),
 
-  vo |>
+  vo %>%
     filter(!is.na(visit_start_date), !is.na(visit_end_date),
-           visit_start_date > visit_end_date) |>
-    nrow() |>
+           visit_start_date > visit_end_date) %>%
     dq_row("Temporal plausibility", "Visit Occurrence",
-           "Visit start date \u2264 visit end date", n_vo, fail_n = _),
+           "Visit start date \u2264 visit end date", n_vo, fail_n = nrow(.)),
 
-  check_date_within(vo_dt, "visit_start_date", vo_dt, "start_from_dt", "!=") |>
-    nrow() |>
+  check_date_within(vo_dt, "visit_start_date", vo_dt, "start_from_dt", "!=") %>%
+    nrow() %>%
     dq_row("Computational conformance", "Visit Occurrence",
-           "visit_start_date matches date(visit_start_datetime)", n_vo, fail_n = _),
+           "visit_start_date matches date(visit_start_datetime)", n_vo, fail_n = .),
 
-  check_date_within(vo_dt, "visit_end_date", vo_dt, "end_from_dt", "!=") |>
-    nrow() |>
+  check_date_within(vo_dt, "visit_end_date", vo_dt, "end_from_dt", "!=") %>%
+    nrow() %>%
     dq_row("Computational conformance", "Visit Occurrence",
-           "visit_end_date matches date(visit_end_datetime)", n_vo, fail_n = _),
+           "visit_end_date matches date(visit_end_datetime)", n_vo, fail_n = .),
 
   check_date_within(vo, "visit_start_date",
-                    obs_period, "observation_period_start_date", "<") |>
-    nrow() |>
+                    obs_period, "observation_period_start_date", "<") %>%
     dq_row("Temporal plausibility", "Visit Occurrence",
-           "Visit start date \u2265 observation period start date", n_vo, fail_n = _),
+           "Visit start date \u2265 observation period start date", n_vo, fail_n = nrow(.)),
 
   check_date_within(vo, "visit_end_date",
-                    obs_period, "observation_period_end_date", ">") |>
-    nrow() |>
+                    obs_period, "observation_period_end_date", ">") %>%
     dq_row("Temporal plausibility", "Visit Occurrence",
-           "Visit end date \u2264 observation period end date", n_vo, fail_n = _),
+           "Visit end date \u2264 observation period end date", n_vo, fail_n = nrow(.)),
 
   check_date_within(vo, "visit_start_date",
-                    compare_date = Sys.Date(), check_arg = ">") |>
-    nrow() |>
+                    compare_date = Sys.Date(), check_arg = ">") %>%
     dq_row("Temporal plausibility", "Visit Occurrence",
-           "Visit start date \u2264 today", n_vo, fail_n = _),
+           "Visit start date \u2264 today", n_vo, fail_n = nrow(.)),
 
   check_date_within(vo, "visit_end_date",
-                    compare_date = Sys.Date(), check_arg = ">") |>
-    nrow() |>
+                    compare_date = Sys.Date(), check_arg = ">") %>%
     dq_row("Temporal plausibility", "Visit Occurrence",
-           "Visit end date \u2264 today", n_vo, fail_n = _)
+           "Visit end date \u2264 today", n_vo, fail_n = nrow(.))
 )
 ```
 
@@ -255,58 +240,53 @@ if (nrow(visit_detail) == 0) {
   cat("The Visit Detail table is empty — skipping checks.\n")
 } else {
   n_vd <- nrow(visit_detail)
-  vd   <- visit_detail |>
+  vd   <- visit_detail %>%
     mutate(start_from_dt = as.Date(visit_detail_start_datetime),
            end_from_dt   = as.Date(visit_detail_end_datetime))
 
   DQ <- bind_rows(DQ,
 
     find_duplicates(vd, c("visit_detail_id", "person_id",
-                           "visit_detail_start_date", "visit_detail_end_date")) |>
-      nrow() |>
+                           "visit_detail_start_date", "visit_detail_end_date")) %>%
+      nrow() %>%
       dq_row("Uniqueness", "Visit Detail",
-             "visit_detail_id is unique (person, start, end)", n_vd, fail_n = _),
+             "visit_detail_id is unique (person, start, end)", n_vd, fail_n = .),
 
-    check_date_within(vd, "visit_detail_start_date", vd, "start_from_dt", "!=") |>
-      nrow() |>
+    check_date_within(vd, "visit_detail_start_date", vd, "start_from_dt", "!=") %>%
+      nrow() %>%
       dq_row("Computational conformance", "Visit Detail",
              "visit_detail_start_date matches date(visit_detail_start_datetime)",
-             n_vd, fail_n = _),
+             n_vd, fail_n = .),
 
-    check_date_within(vd, "visit_detail_end_date", vd, "end_from_dt", "!=") |>
-      nrow() |>
+    check_date_within(vd, "visit_detail_end_date", vd, "end_from_dt", "!=") %>%
+      nrow() %>%
       dq_row("Computational conformance", "Visit Detail",
              "visit_detail_end_date matches date(visit_detail_end_datetime)",
-             n_vd, fail_n = _),
+             n_vd, fail_n = .),
 
     check_date_within(vd, "visit_detail_start_datetime",
-                      obs_period, "observation_period_start_date", "<") |>
-      nrow() |>
+                      obs_period, "observation_period_start_date", "<") %>%
       dq_row("Temporal plausibility", "Visit Detail",
-             "visit_detail_start_datetime \u2265 observation period start", n_vd, fail_n = _),
+             "visit_detail_start_datetime \u2265 observation period start", n_vd, fail_n = nrow(.)),
 
     check_date_within(vd, "visit_detail_start_date",
-                      vo, "visit_start_date", "<") |>
-      nrow() |>
+                      vo, "visit_start_date", "<") %>%
       dq_row("Temporal plausibility", "Visit Detail",
-             "visit_detail_start_date \u2265 visit_occurrence start", n_vd, fail_n = _),
+             "visit_detail_start_date \u2265 visit_occurrence start", n_vd, fail_n = nrow(.)),
 
     check_date_within(vd, "visit_detail_end_date",
-                      obs_period, "observation_period_end_date", ">") |>
-      nrow() |>
+                      obs_period, "observation_period_end_date", ">") %>%
       dq_row("Temporal plausibility", "Visit Detail",
-             "visit_detail_end_date \u2264 observation period end", n_vd, fail_n = _),
+             "visit_detail_end_date \u2264 observation period end", n_vd, fail_n = nrow(.)),
 
-    check_date_within(vd, "visit_detail_end_date", vo, "visit_end_date", ">") |>
-      nrow() |>
+    check_date_within(vd, "visit_detail_end_date", vo, "visit_end_date", ">") %>%
       dq_row("Temporal plausibility", "Visit Detail",
-             "visit_detail_end_date \u2264 visit_occurrence end", n_vd, fail_n = _),
+             "visit_detail_end_date \u2264 visit_occurrence end", n_vd, fail_n = nrow(.)),
 
     check_date_within(vd, "visit_detail_end_date",
-                      compare_date = Sys.Date(), check_arg = ">") |>
-      nrow() |>
+                      compare_date = Sys.Date(), check_arg = ">") %>%
       dq_row("Temporal plausibility", "Visit Detail",
-             "visit_detail_end_date \u2264 today", n_vd, fail_n = _)
+             "visit_detail_end_date \u2264 today", n_vd, fail_n = nrow(.))
   )
 }
 ```
@@ -321,36 +301,36 @@ one **procedure** recorded.
 
 ```{r dq-visit-day-completeness}
 # Build the set of all expected visit-days
-visit_days <- vo |>
-  filter(!is.na(visit_start_date), !is.na(visit_end_date)) |>
-  select(visit_occurrence_id, person_id, visit_start_date, visit_end_date) |>
-  mutate(day = map2(visit_start_date, visit_end_date, seq, by = "day")) |>
-  unnest(day) |>
+visit_days <- vo %>%
+  filter(!is.na(visit_start_date), !is.na(visit_end_date)) %>%
+  select(visit_occurrence_id, person_id, visit_start_date, visit_end_date) %>%
+  mutate(day = map2(visit_start_date, visit_end_date, seq, by = "day")) %>%
+  unnest(day) %>%
   select(visit_occurrence_id, person_id, day)
 
 n_vdays <- nrow(visit_days)
 
 # Days covered by each clinical domain — one row per visit-day where ≥1 exists
-days_with_condition <- conditions |>
-  transmute(visit_occurrence_id, day = as.Date(condition_start_date)) |>
+days_with_condition <- conditions %>%
+  transmute(visit_occurrence_id, day = as.Date(condition_start_date)) %>%
   distinct()
 
 days_with_meas_obs <- bind_rows(
-  measurements    |> transmute(visit_occurrence_id, day = as.Date(measurement_date)),
-  observations_tbl |> transmute(visit_occurrence_id, day = as.Date(observation_date))
-) |> distinct()
+  measurements    %>% transmute(visit_occurrence_id, day = as.Date(measurement_date)),
+  observations_tbl %>% transmute(visit_occurrence_id, day = as.Date(observation_date))
+) %>% distinct()
 
-days_with_procedure <- procedures |>
-  transmute(visit_occurrence_id, day = as.Date(procedure_date)) |>
+days_with_procedure <- procedures %>%
+  transmute(visit_occurrence_id, day = as.Date(procedure_date)) %>%
   distinct()
 
 # Anti-join to find visit-days *missing* each domain
-missing_condition  <- visit_days |>
-  anti_join(days_with_condition,  by = c("visit_occurrence_id", "day")) |> nrow()
-missing_meas_obs   <- visit_days |>
-  anti_join(days_with_meas_obs,   by = c("visit_occurrence_id", "day")) |> nrow()
-missing_procedure  <- visit_days |>
-  anti_join(days_with_procedure,  by = c("visit_occurrence_id", "day")) |> nrow()
+missing_condition  <- visit_days %>%
+  anti_join(days_with_condition,  by = c("visit_occurrence_id", "day")) %>% nrow()
+missing_meas_obs   <- visit_days %>%
+  anti_join(days_with_meas_obs,   by = c("visit_occurrence_id", "day")) %>% nrow()
+missing_procedure  <- visit_days %>%
+  anti_join(days_with_procedure,  by = c("visit_occurrence_id", "day")) %>% nrow()
 
 DQ <- bind_rows(DQ,
   dq_row("Completeness", "Visit Day",
@@ -376,18 +356,18 @@ if (n_co == 0) {
   cat("The Condition Occurrence table is empty — skipping checks.\n")
 } else {
   # Every visit has a condition recorded within 24 h of admission
-  visits_with_admit_condition <- conditions |>
-    filter(!is.na(condition_start_date)) |>
-    inner_join(vo |> select(visit_occurrence_id, visit_start_date),
-               by = "visit_occurrence_id") |>
-    filter(as.integer(as.Date(condition_start_date) - visit_start_date) <= 1L) |>
+  visits_with_admit_condition <- conditions %>%
+    filter(!is.na(condition_start_date)) %>%
+    inner_join(vo %>% select(visit_occurrence_id, visit_start_date),
+               by = "visit_occurrence_id") %>%
+    filter(as.integer(as.Date(condition_start_date) - visit_start_date) <= 1L) %>%
     distinct(visit_occurrence_id)
 
   DQ <- bind_rows(DQ,
-    nrow(vo) - nrow(visits_with_admit_condition) |>
+    nrow(vo) - nrow(visits_with_admit_condition) %>%
       dq_row("Completeness", "Condition Occurrence",
              "Every visit has a condition recorded within 24 h of admission",
-             nrow(vo), fail_n = _)
+             nrow(vo), fail_n = .)
   )
 }
 ```
@@ -404,12 +384,11 @@ n_m <- nrow(measurements)
 DQ <- bind_rows(DQ,
 
   # Every numeric measurement has a unit
-  measurements |>
+  measurements %>%
     filter(!is.na(value_as_number),
-           is.na(unit_concept_id) | unit_concept_id == 0) |>
-    nrow() |>
+           is.na(unit_concept_id) | unit_concept_id == 0) %>%
     dq_row("Completeness", "Measurement",
-           "Every value_as_number has a unit_concept_id", n_m, fail_n = _),
+           "Every value_as_number has a unit_concept_id", n_m, fail_n = nrow(.)),
 
   # Value plausibility — single join, no loops
   dq_measurement_plausibility(measurements, measure_bounds, params$measurement_tolerance)
@@ -424,12 +403,11 @@ DQ <- bind_rows(DQ,
 n_obs <- nrow(observations_tbl)
 
 DQ <- bind_rows(DQ,
-  observations_tbl |>
+  observations_tbl %>%
     filter(!is.na(value_as_number),
-           is.na(unit_concept_id) | unit_concept_id == 0) |>
-    nrow() |>
+           is.na(unit_concept_id) | unit_concept_id == 0) %>%
     dq_row("Completeness", "Observation",
-           "Every value_as_number has a unit_concept_id", n_obs, fail_n = _)
+           "Every value_as_number has a unit_concept_id", n_obs, fail_n = nrow(.))
 )
 ```
 
@@ -444,40 +422,35 @@ n_d   <- nrow(death)
 if (n_d == 0) {
   cat("The Death table is empty — skipping checks.\n")
 } else {
-  death_yr <- death |>
+  death_yr <- death %>%
     mutate(death_year = as.integer(format(as.Date(death_date, "%d/%m/%Y"), "%Y")))
 
   DQ <- bind_rows(DQ,
 
     check_date_within(death_yr, "death_year",
-                      st[["person"]], "year_of_birth", "<") |>
-      nrow() |>
+                      st[["person"]], "year_of_birth", "<") %>%
       dq_row("Temporal plausibility", "Death",
-             "Year of death \u2265 year of birth", n_d, fail_n = _),
+             "Year of death \u2265 year of birth", n_d, fail_n = nrow(.)),
 
     check_date_within(death, "death_date",
-                      obs_period, "observation_period_start_date", "<") |>
-      nrow() |>
+                      obs_period, "observation_period_start_date", "<") %>%
       dq_row("Temporal plausibility", "Death",
-             "Death date \u2265 observation period start", n_d, fail_n = _),
+             "Death date \u2265 observation period start", n_d, fail_n = nrow(.)),
 
     check_date_within(death, "death_date",
-                      obs_period, "observation_period_end_date", "!=") |>
-      nrow() |>
+                      obs_period, "observation_period_end_date", "!=") %>%
       dq_row("Temporal plausibility", "Death",
-             "Death date = observation period end date", n_d, fail_n = _),
+             "Death date = observation period end date", n_d, fail_n = nrow(.)),
 
     check_date_within(death, "death_date",
-                      vo, "visit_start_date", "<") |>
-      nrow() |>
+                      vo, "visit_start_date", "<") %>%
       dq_row("Temporal plausibility", "Death",
-             "Death date \u2265 visit start date", n_d, fail_n = _),
+             "Death date \u2265 visit start date", n_d, fail_n = nrow(.)),
 
     check_date_within(death, "death_date",
-                      compare_date = Sys.Date(), check_arg = ">") |>
-      nrow() |>
+                      compare_date = Sys.Date(), check_arg = ">") %>%
       dq_row("Temporal plausibility", "Death",
-             "Death date \u2264 today", n_d, fail_n = _)
+             "Death date \u2264 today", n_d, fail_n = nrow(.))
   )
 }
 ```
@@ -495,10 +468,10 @@ plot_dq_heatmap(DQ)
 ```
 
 ```{r dq-table}
-DQ |>
-  mutate(`Failing n (%)` = glue("{Fail_n} ({Fail_pct}%)")) |>
-  select(Domain, Category, Check, N, Status, `Failing n (%)`) |>
-  print_large_kable(max_rows = 200) |>
+DQ %>%
+  mutate(`Failing n (%)` = glue("{Fail_n} ({Fail_pct}%)")) %>%
+  select(Domain, Category, Check, N, Status, `Failing n (%)`) %>%
+  print_large_kable(max_rows = 200) %>%
   column_spec(5, color = if_else(DQ$Status == "Pass", "#379481", "#c0392b"), bold = TRUE)
 ```
 

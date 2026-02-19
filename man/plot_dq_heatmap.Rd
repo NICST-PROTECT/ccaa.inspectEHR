@@ -2,17 +2,19 @@
 % Please edit documentation in R/plot.R
 \name{plot_dq_heatmap}
 \alias{plot_dq_heatmap}
-\title{Plot data quality results as a heatmap}
+\title{Heatmap of all DQ check results}
 \usage{
 plot_dq_heatmap(dq_df)
 }
 \arguments{
-\item{dq_df}{result of running DQ checks: columns Domain, Category, Check,
-Status ("Pass"/"Fail"), Fail_pct}
+\item{dq_df}{Tibble as accumulated by \code{\link{dq_row}} calls in the DQ
+report — columns Domain, Category, Check, N, Fail_n, Fail_pct, Status}
 }
 \value{
-a ggplot heatmap
+A \code{ggplot2} object
 }
 \description{
-Plot data quality results as a heatmap
+Rows are checks, columns are Khan framework categories, faceted by domain.
+Tiles are green for passing checks and graduate yellow → red by percentage
+failing.
 }

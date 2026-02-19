@@ -2,10 +2,16 @@
 % Please edit documentation in R/plot.R
 \name{plot_dq_summary}
 \alias{plot_dq_summary}
-\title{Plot pass/fail summary bar chart per domain}
+\title{Stacked bar showing pass/fail proportion per DQ domain}
 \usage{
 plot_dq_summary(dq_df)
 }
+\arguments{
+\item{dq_df}{Tibble as accumulated by \code{\link{dq_row}} calls}
+}
+\value{
+A \code{ggplot2} object
+}
 \description{
-Plot pass/fail summary bar chart per domain
+Stacked bar showing pass/fail proportion per DQ domain
 }
